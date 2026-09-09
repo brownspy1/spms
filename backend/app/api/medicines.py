@@ -7,7 +7,7 @@ from sqlalchemy import func
 from backend.app.database import get_db
 from backend.app.models.models import Medicine, Batch, StockAdjustment, User
 from backend.app.schemas.schemas import (
-    MedicineResponse, MedicineCreate, BatchResponse, BatchCreate, StockAdjustmentCreate
+    MedicineResponse, MedicineCreate, BatchResponse, BatchCreate, BatchBase, StockAdjustmentCreate
 )
 from backend.app.api.auth import get_current_user, RoleChecker
 from backend.app.services.audit_service import log_audit_event
