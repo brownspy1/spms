@@ -462,3 +462,85 @@ def test_staff_blocked_from_clinical_interaction_override():
     assert "Dispensary Staff are not authorized" in resp.json()["detail"]
 
 
+def test_enhanced_brand_normalization_and_contraindication():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "drug_names": ["Viagra", "Nitrostat"]
+    }
+    resp = client.post("/api/interactions/check", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["has_critical_warning"] is True
+    assert data["highest_severity"] == "Contraindicated"
+    assert data["total_interactions"] >= 1
+    # Check that brand names were normalized
+    generics = [item["generic"] for item in data["normalized_drugs"]]
+    assert "sildenafil" in generics
+    assert "nitroglycerin" in generics
+
+
+def test_expanded_interactions_lithium_ibuprofen():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "drug_names": ["Lithium", "Ibuprofen"]
+    }
+    resp = client.post("/api/interactions/check", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["has_critical_warning"] is True
+    assert data["highest_severity"] == "Major"
+    assert any("renal" in it["mechanism"].lower() or "prostaglandin" in it["mechanism"].lower() for it in data["interactions"])
+
+
+def test_enhanced_allergy_cross_reactivity():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Penicillin allergy with Amoxicillin
+    payload_pen = {
+        "drug_names": ["Amoxicillin"],
+        "patient_allergies": "Penicillin"
+    }
+    resp_pen = client.post("/api/interactions/check", json=payload_pen, headers=headers)
+    assert resp_pen.status_code == 200
+    data_pen = resp_pen.json()
+    assert len(data_pen["allergy_warnings"]) >= 1
+    assert "Penicillin" in data_pen["allergy_warnings"][0] or "Beta-Lactam" in data_pen["allergy_warnings"][0]
+
+    # NSAID allergy with Aspirin & Ibuprofen
+    payload_nsaid = {
+        "drug_names": ["Aspirin", "Ibuprofen"],
+        "patient_allergies": "Severe NSAID allergy"
+    }
+    resp_nsaid = client.post("/api/interactions/check", json=payload_nsaid, headers=headers)
+    assert resp_nsaid.status_code == 200
+    data_nsaid = resp_nsaid.json()
+    assert len(data_nsaid["allergy_warnings"]) >= 1
+
+
+def test_cumulative_clinical_toxicity_scoring():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "drug_names": ["Warfarin", "Aspirin", "Clopidogrel"]
+    }
+    resp = client.post("/api/interactions/check", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "cumulative_risks" in data
+    assert "bleeding" in data["cumulative_risks"]
+    bleeding_risk = data["cumulative_risks"]["bleeding"]
+    assert bleeding_risk["drug_count"] == 3
+    assert bleeding_risk["severity"] == "High"
+
+
+

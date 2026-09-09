@@ -228,6 +228,8 @@ class InteractionResultItem(BaseModel):
     management: str
     evidence: str
     matched_drugs: List[str]
+    risk_category: Optional[str] = None
+    source: Optional[str] = "Audited Clinical Guidelines"
 
 class InteractionCheckResponse(BaseModel):
     has_critical_warning: bool
@@ -236,6 +238,10 @@ class InteractionCheckResponse(BaseModel):
     interactions: List[InteractionResultItem]
     allergy_warnings: List[str] = []
     clinical_summary: str
+    cumulative_risks: Optional[Dict[str, Any]] = None
+    openfda_findings: Optional[List[Dict[str, Any]]] = None
+    normalized_drugs: Optional[List[Dict[str, Any]]] = None
+    ai_clinical_notes: Optional[str] = None
 
 class AIConsultRequest(BaseModel):
     prompt: str
