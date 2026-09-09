@@ -91,11 +91,11 @@ export default function GlobalAIChatbot() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-40 group flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white shadow-xl shadow-emerald-950/50 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border border-emerald-400/30"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 group flex items-center gap-2.5 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white shadow-xl shadow-emerald-950/50 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border border-emerald-400/30"
           title="Open Clinical AI Pharmacist Assistant"
         >
           <div className="relative">
-            <Sparkles className="w-5 h-5 text-white animate-pulse" />
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse" />
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-300 rounded-full ring-2 ring-slate-900 animate-ping" />
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-slate-900" />
           </div>
@@ -108,7 +108,7 @@ export default function GlobalAIChatbot() {
 
       {/* Floating Chat Drawer Window (visible when open) */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-full sm:w-[420px] h-[580px] max-h-[85vh] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl shadow-black/80 flex flex-col overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 w-auto sm:w-[420px] h-[calc(100dvh-1rem)] sm:h-[580px] max-h-[92vh] sm:max-h-[85vh] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl shadow-black/80 flex flex-col overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-5 duration-200">
           {/* Header */}
           <div className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2.5">

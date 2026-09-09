@@ -302,7 +302,7 @@ export default function InteractionsChecker() {
       </div>
 
       {/* RIGHT: AI Clinical Pharmacist Assistant (5 Cols) */}
-      <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col h-[calc(100vh-6rem)] overflow-hidden shadow-lg shadow-black/20">
+      <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col h-[520px] lg:h-[calc(100vh-6rem)] overflow-hidden shadow-lg shadow-black/20">
         {/* Chat Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
           <div className="flex items-center gap-2.5">

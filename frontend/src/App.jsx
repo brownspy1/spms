@@ -19,6 +19,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(getStoredUser());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [alertsData, setAlertsData] = useState({ lowStock: [], expiring: [] });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -58,12 +59,19 @@ export default function App() {
         alertsData={alertsData}
         onNavigateTab={setActiveTab}
         onRefreshAlerts={loadSystemAlerts}
+        onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userRole={currentUser.role} />
+      <div className="flex-1 flex overflow-hidden relative">
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          userRole={currentUser.role}
+          isOpenMobile={mobileMenuOpen}
+          onCloseMobile={() => setMobileMenuOpen(false)}
+        />
 
-        <main className="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-6 max-w-7xl mx-auto w-full">
           {activeTab === 'dashboard' && (
             <Dashboard setActiveTab={setActiveTab} userRole={currentUser.role} />
           )}

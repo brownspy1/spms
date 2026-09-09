@@ -10,6 +10,7 @@ import {
   RefreshCw,
   X,
   CheckCircle2,
+  Menu,
 } from 'lucide-react';
 import { removeAuthToken } from '../services/api';
 
@@ -19,6 +20,7 @@ export default function Navbar({
   alertsData = { lowStock: [], expiring: [] },
   onNavigateTab,
   onRefreshAlerts,
+  onToggleMobileMenu,
 }) {
   const [isOpenAlerts, setIsOpenAlerts] = useState(false);
   const [activeAlertTab, setActiveAlertTab] = useState('all'); // 'all', 'low_stock', 'expiring'
@@ -88,25 +90,35 @@ export default function Navbar({
   };
 
   return (
-    <header className="h-16 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40">
-      {/* Brand */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-bold">
-          <Pill className="w-5 h-5" />
+    <header className="h-16 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40">
+      {/* Brand & Mobile Hamburger */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Mobile Hamburger Toggle Button */}
+        <button
+          onClick={onToggleMobileMenu}
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 md:hidden transition-colors shrink-0"
+          aria-label="Toggle Navigation Menu"
+          title="Open Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-bold shrink-0">
+          <Pill className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-lg tracking-tight text-white">SPMS</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="font-bold text-base sm:text-lg tracking-tight text-white">SPMS</span>
+            <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium whitespace-nowrap">
               v1.0 Clinical
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Smart Pharmacy Management System</p>
+          <p className="hidden sm:block text-[11px] text-slate-400">Smart Pharmacy Management System</p>
         </div>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         {/* Quick Role Switcher for instant evaluation */}
         <div className="hidden lg:flex items-center gap-1 bg-slate-950/80 p-1 rounded-lg border border-slate-800 text-xs">
           <span className="text-slate-400 px-2 font-medium">Demo Switch:</span>
@@ -129,14 +141,14 @@ export default function Navbar({
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsOpenAlerts(!isOpenAlerts)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
               totalAlerts > 0
                 ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25 shadow-sm shadow-amber-500/10'
                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
             }`}
             title="Click to inspect real-time alerts"
           >
-            <Bell className={`w-4 h-4 ${totalAlerts > 0 ? 'animate-pulse text-amber-400' : 'text-slate-400'}`} />
+            <Bell className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${totalAlerts > 0 ? 'animate-pulse text-amber-400' : 'text-slate-400'}`} />
             <span>
               {totalAlerts} Alert{totalAlerts !== 1 ? 's' : ''}
             </span>
@@ -144,7 +156,7 @@ export default function Navbar({
 
           {/* Floating Dropdown Modal */}
           {isOpenAlerts && (
-            <div className="absolute right-0 mt-2 w-96 max-w-[90vw] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/60 z-50 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/60 z-50 overflow-hidden flex flex-col max-h-[85vh]">
               {/* Header */}
               <div className="p-4 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">

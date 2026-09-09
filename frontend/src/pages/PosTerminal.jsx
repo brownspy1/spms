@@ -191,9 +191,9 @@ export default function PosTerminal({ currentUser }) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-6rem)]">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[calc(100vh-6rem)] lg:h-[calc(100vh-6rem)]">
       {/* LEFT: Product Catalog & Search (7 Cols) */}
-      <div className="lg:col-span-7 flex flex-col gap-4 overflow-hidden">
+      <div className="lg:col-span-7 flex flex-col gap-4 max-h-[500px] lg:max-h-none overflow-hidden">
         {/* Search & Category Header */}
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
           <div className="relative">
@@ -280,7 +280,7 @@ export default function PosTerminal({ currentUser }) {
       </div>
 
       {/* RIGHT: Cart, Interaction Warnings & Checkout (5 Cols) */}
-      <div className="lg:col-span-5 bg-slate-900 rounded-2xl border border-slate-800 flex flex-col h-full overflow-hidden">
+      <div className="lg:col-span-5 bg-slate-900 rounded-2xl border border-slate-800 flex flex-col min-h-[500px] lg:h-full overflow-hidden">
         {/* Customer Selector & Cart Header */}
         <div className="p-4 border-b border-slate-800 space-y-3">
           <div className="flex items-center justify-between">

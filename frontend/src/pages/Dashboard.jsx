@@ -55,35 +55,35 @@ export default function Dashboard({ setActiveTab, userRole }) {
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-900/90 to-emerald-950/40 p-6 rounded-2xl border border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-900/90 to-emerald-950/40 p-4 sm:p-6 rounded-2xl border border-slate-800">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Pharmacy Operations & Clinical Overview</h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Pharmacy Operations & Clinical Overview</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">
             Real-time dispensing metrics, inventory valuation, and patient safety monitoring.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
           {userRole === 'Admin' && (
             <button
               onClick={() => setActiveTab('staff')}
-              className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border border-purple-500/30 shadow-sm"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all border border-purple-500/30 shadow-sm"
             >
-              <UserPlus className="w-4 h-4 text-purple-400" />
+              <UserPlus className="w-4 h-4 text-purple-400 shrink-0" />
               <span>Manage Staff</span>
             </button>
           )}
           <button
             onClick={() => setActiveTab('pos')}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-emerald-600/20"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-600/20"
           >
-            <ShoppingCart className="w-4 h-4" />
+            <ShoppingCart className="w-4 h-4 shrink-0" />
             <span>Open POS Terminal</span>
           </button>
           <button
             onClick={() => setActiveTab('interactions')}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border border-slate-700"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all border border-slate-700"
           >
-            <Activity className="w-4 h-4 text-emerald-400" />
+            <Activity className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>Interaction Check</span>
           </button>
         </div>
