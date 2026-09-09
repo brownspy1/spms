@@ -477,19 +477,31 @@ export default function PosTerminal({ currentUser }) {
               Under hospital and pharmacy regulatory standards, an explicit clinical justification must be documented in the immutable audit log before checkout can proceed.
             </p>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">
-                Pharmacist Justification / Prescriber Verification Note:
-              </label>
-              <textarea
-                rows={3}
-                required
-                placeholder="e.g., Prescribing cardiologist contacted; confirmed low-dose combination with INR monitoring scheduled..."
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"
-              />
-            </div>
+            {currentUser?.role === 'Staff' ? (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-rose-400">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Licensed Pharmacist Authorization Required</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-300">
+                  Dispensary Staff accounts cannot sign clinical drug interaction overrides. Please have a licensed Pharmacist or Administrator review and authorize this transaction.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">
+                  Pharmacist Justification / Prescriber Verification Note:
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="e.g., Prescribing cardiologist contacted; confirmed low-dose combination with INR monitoring scheduled..."
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"
+                />
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -498,13 +510,15 @@ export default function PosTerminal({ currentUser }) {
               >
                 Cancel
               </button>
-              <button
-                disabled={!overrideReason.trim()}
-                onClick={() => handleCheckout()}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 disabled:opacity-50"
-              >
-                Sign & Authorize Dispensing
-              </button>
+              {currentUser?.role !== 'Staff' && (
+                <button
+                  disabled={!overrideReason.trim()}
+                  onClick={() => handleCheckout()}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 disabled:opacity-50"
+                >
+                  Sign & Authorize Dispensing
+                </button>
+              )}
             </div>
           </div>
         </div>

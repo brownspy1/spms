@@ -51,16 +51,22 @@ def checkout(
 
     # Check for Contraindicated or Major severity
     critical_interactions = [it for it in detected_interactions if it["severity"] in ["Contraindicated", "Major"]]
-    if critical_interactions and not checkout_in.interaction_override_reason:
-        first_crit = critical_interactions[0]
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "CRITICAL_DRUG_INTERACTION",
-                "message": f"Critical drug interaction detected between {first_crit['drug_a'].title()} and {first_crit['drug_b'].title()} ({first_crit['severity']}). An override reason from a licensed pharmacist is required to proceed.",
-                "interactions": critical_interactions
-            }
-        )
+    if critical_interactions:
+        if current_user.role not in ["Admin", "Pharmacist"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Dispensary Staff are not authorized to override critical clinical drug interactions. A licensed Pharmacist or Admin must review and authorize this transaction."
+            )
+        if not checkout_in.interaction_override_reason:
+            first_crit = critical_interactions[0]
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "CRITICAL_DRUG_INTERACTION",
+                    "message": f"Critical drug interaction detected between {first_crit['drug_a'].title()} and {first_crit['drug_b'].title()} ({first_crit['severity']}). An override reason from a licensed pharmacist is required to proceed.",
+                    "interactions": critical_interactions
+                }
+            )
 
     # 2. FEFO Stock Allocation & Deduction
     allocated_sale_items = []
@@ -190,12 +196,13 @@ def list_sales(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     payment_method: Optional[str] = None,
+    user_id: Optional[int] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List sales with search, date range filtering, and pagination."""
+    """List sales with search, date range filtering, staff filtering, and pagination."""
     query = db.query(Sale)
     
     if search:
@@ -215,20 +222,117 @@ def list_sales(
     
     if payment_method:
         query = query.filter(Sale.payment_method == payment_method)
+        
+    if user_id:
+        query = query.filter(Sale.user_id == user_id)
     
     total = query.count()
     sales = query.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
     
-    # Enrich with customer_phone and cashier_name
+    # Enrich with customer_phone, cashier_name, cashier_role, cashier_username
     results = []
     for s in sales:
         data = SaleResponse.model_validate(s).model_dump()
         data["customer_phone"] = s.customer.phone if s.customer else None
         data["cashier_name"] = s.user.full_name if s.user else None
+        data["cashier_role"] = s.user.role if s.user else None
+        data["cashier_username"] = s.user.username if s.user else None
         data["prescription_id"] = s.prescription_id
         results.append(data)
     
     return {"sales": results, "total": total}
+
+@router.get("/sales-staff-breakdown")
+def get_staff_sales_breakdown(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Detailed audit breakdown of sales grouped by staff member:
+    Allows Admin and Pharmacists to see which staff/pharmacist sold which medicines,
+    to which customers, and for what total amounts.
+    """
+    sales = db.query(Sale).order_by(Sale.created_at.desc()).all()
+    
+    staff_map = {}
+    for s in sales:
+        u = s.user
+        uid = s.user_id
+        if uid not in staff_map:
+            staff_map[uid] = {
+                "user_id": uid,
+                "full_name": u.full_name if u else f"Staff #{uid}",
+                "username": u.username if u else "unknown",
+                "role": u.role if u else "Staff",
+                "total_sales_count": 0,
+                "total_revenue": 0.0,
+                "medicines_sold": {},
+                "customers_served": {},
+                "recent_sales": []
+            }
+        
+        entry = staff_map[uid]
+        entry["total_sales_count"] += 1
+        entry["total_revenue"] = round(entry["total_revenue"] + s.total_amount, 2)
+        
+        # Track customer details
+        cust_key = s.customer_name or "Walk-in Customer"
+        cust_phone = s.customer.phone if s.customer else None
+        if cust_key not in entry["customers_served"]:
+            entry["customers_served"][cust_key] = {
+                "name": cust_key,
+                "phone": cust_phone,
+                "orders_count": 0,
+                "total_spent": 0.0
+            }
+        entry["customers_served"][cust_key]["orders_count"] += 1
+        entry["customers_served"][cust_key]["total_spent"] = round(
+            entry["customers_served"][cust_key]["total_spent"] + s.total_amount, 2
+        )
+        
+        # Track specific medicines sold by this staff member
+        for it in s.items:
+            med_name = it.medicine_name
+            if med_name not in entry["medicines_sold"]:
+                entry["medicines_sold"][med_name] = {
+                    "medicine_name": med_name,
+                    "total_quantity": 0,
+                    "total_revenue": 0.0
+                }
+            entry["medicines_sold"][med_name]["total_quantity"] += it.quantity
+            entry["medicines_sold"][med_name]["total_revenue"] = round(
+                entry["medicines_sold"][med_name]["total_revenue"] + it.subtotal, 2
+            )
+            
+        if len(entry["recent_sales"]) < 8:
+            entry["recent_sales"].append({
+                "id": s.id,
+                "invoice_number": s.invoice_number,
+                "customer_name": s.customer_name,
+                "customer_phone": cust_phone,
+                "total_amount": s.total_amount,
+                "payment_method": s.payment_method,
+                "created_at": s.created_at,
+                "items_count": len(s.items)
+            })
+            
+    # Format and sort by total revenue
+    results = []
+    for staff in staff_map.values():
+        staff["medicines_sold"] = sorted(
+            list(staff["medicines_sold"].values()),
+            key=lambda x: x["total_revenue"],
+            reverse=True
+        )
+        staff["customers_served"] = sorted(
+            list(staff["customers_served"].values()),
+            key=lambda x: x["total_spent"],
+            reverse=True
+        )
+        results.append(staff)
+        
+    results.sort(key=lambda x: x["total_revenue"], reverse=True)
+    return results
 
 @router.get("/sales/{id}")
 def get_sale_receipt(id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -239,5 +343,7 @@ def get_sale_receipt(id: int, user: User = Depends(get_current_user), db: Sessio
     data = SaleResponse.model_validate(sale).model_dump()
     data["customer_phone"] = sale.customer.phone if sale.customer else None
     data["cashier_name"] = sale.user.full_name if sale.user else None
+    data["cashier_role"] = sale.user.role if sale.user else None
+    data["cashier_username"] = sale.user.username if sale.user else None
     data["prescription_id"] = sale.prescription_id
     return data

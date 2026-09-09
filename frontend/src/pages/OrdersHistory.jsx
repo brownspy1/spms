@@ -18,12 +18,18 @@ import {
   Printer,
   Eye,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Users,
+  Pill,
+  Shield,
+  X,
+  Sparkles,
+  ShoppingBag
 } from 'lucide-react';
-import { posApi } from '../services/api';
+import { posApi, authApi } from '../services/api';
 import ReceiptModal from '../components/ReceiptModal';
 
-export default function OrdersHistory() {
+export default function OrdersHistory({ currentUser }) {
   const [sales, setSales] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -34,12 +40,22 @@ export default function OrdersHistory() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+
+  // Staff list for filter dropdown
+  const [staffList, setStaffList] = useState([]);
 
   // Selected sale for receipt reprint modal
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState(null);
 
   // Expandable row IDs
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
+
+  // Staff sales breakdown modal
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [breakdownData, setBreakdownData] = useState([]);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [activeStaffTab, setActiveStaffTab] = useState(null);
 
   const fetchSales = async () => {
     setLoading(true);
@@ -50,6 +66,7 @@ export default function OrdersHistory() {
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
       if (paymentMethod) params.payment_method = paymentMethod;
+      if (selectedStaffId) params.user_id = selectedStaffId;
       params.limit = 100;
 
       const res = await posApi.listSales(params);
@@ -71,9 +88,46 @@ export default function OrdersHistory() {
     }
   };
 
+  const loadStaffList = async () => {
+    try {
+      // If admin, we can load users list directly; otherwise load staff breakdown
+      if (currentUser?.role === 'Admin') {
+        const users = await authApi.listUsers();
+        setStaffList(users);
+      } else {
+        const breakdown = await posApi.getStaffSalesBreakdown();
+        setStaffList(breakdown.map((s) => ({
+          id: s.user_id,
+          full_name: s.full_name,
+          username: s.username,
+          role: s.role
+        })));
+      }
+    } catch (err) {
+      console.warn('Could not load staff list:', err);
+    }
+  };
+
+  const handleOpenBreakdown = async () => {
+    setShowBreakdownModal(true);
+    setBreakdownLoading(true);
+    try {
+      const data = await posApi.getStaffSalesBreakdown();
+      setBreakdownData(data || []);
+      if (data && data.length > 0 && !activeStaffTab) {
+        setActiveStaffTab(data[0].user_id);
+      }
+    } catch (err) {
+      console.error('Failed to load staff breakdown:', err);
+    } finally {
+      setBreakdownLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchSales();
-  }, [paymentMethod]);
+    loadStaffList();
+  }, [paymentMethod, selectedStaffId]);
 
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
@@ -85,6 +139,7 @@ export default function OrdersHistory() {
     setDateFrom('');
     setDateTo('');
     setPaymentMethod('');
+    setSelectedStaffId('');
     setTimeout(fetchSales, 0);
   };
 
@@ -113,6 +168,11 @@ export default function OrdersHistory() {
     };
   }, [sales, totalCount]);
 
+  const selectedStaffMemberData = useMemo(() => {
+    if (!activeStaffTab || !breakdownData.length) return null;
+    return breakdownData.find((s) => s.user_id === activeStaffTab) || breakdownData[0];
+  }, [activeStaffTab, breakdownData]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Top Header Banner */}
@@ -126,12 +186,24 @@ export default function OrdersHistory() {
               Orders & Sales History
             </h1>
             <p className="text-xs md:text-sm text-slate-400">
-              Complete log of sold medicines, customer information, prescription-linked sales, and reprintable receipts.
+              Audit log of sold medications, customer records, dispenser tracking, and reprintable receipts.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Staff Sales Breakdown Button (Admin / Pharmacist) */}
+          {(currentUser?.role === 'Admin' || currentUser?.role === 'Pharmacist') && (
+            <button
+              onClick={handleOpenBreakdown}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors border border-emerald-500/30 shadow-sm"
+              title="View which staff member sold which medicines, customers, and revenue"
+            >
+              <Users className="w-4 h-4" />
+              <span>Staff Sales & Medicine Audit</span>
+            </button>
+          )}
+
           <button
             onClick={fetchSales}
             disabled={loading}
@@ -202,15 +274,32 @@ export default function OrdersHistory() {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
         <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
           {/* Search Input */}
-          <div className="lg:col-span-4 relative">
+          <div className="lg:col-span-3 relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search customer name, phone, or invoice..."
+              placeholder="Search customer, phone, invoice..."
               className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
             />
+          </div>
+
+          {/* Staff / Dispenser Filter */}
+          <div className="lg:col-span-3 relative">
+            <User className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3.5" />
+            <select
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              className="w-full pl-8 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-emerald-500 appearance-none"
+            >
+              <option value="">All Staff & Pharmacists</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.full_name || s.username} ({s.role})
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Date From */}
@@ -251,28 +340,42 @@ export default function OrdersHistory() {
               <option value="Mobile">Mobile (bKash/Nagad)</option>
             </select>
           </div>
+        </form>
 
-          {/* Buttons */}
-          <div className="lg:col-span-2 flex items-center gap-2">
-            <button
-              type="submit"
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Apply</span>
-            </button>
-            {(searchTerm || dateFrom || dateTo || paymentMethod) && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-medium transition-colors"
-                title="Reset Filters"
-              >
-                Reset
-              </button>
+        {/* Active Filter Indicators & Reset */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+            {selectedStaffId && (
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] flex items-center gap-1">
+                <User className="w-3 h-3" />
+                Staff Filter: {staffList.find((s) => s.id === parseInt(selectedStaffId))?.full_name || `#${selectedStaffId}`}
+                <button onClick={() => setSelectedStaffId('')} className="hover:text-white ml-0.5">×</button>
+              </span>
+            )}
+            {paymentMethod && (
+              <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] flex items-center gap-1">
+                Payment: {paymentMethod}
+                <button onClick={() => setPaymentMethod('')} className="hover:text-white ml-0.5">×</button>
+              </span>
+            )}
+            {(dateFrom || dateTo) && (
+              <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[11px] flex items-center gap-1">
+                Dates: {dateFrom || 'Start'} to {dateTo || 'Today'}
+                <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="hover:text-white ml-0.5">×</button>
+              </span>
             )}
           </div>
-        </form>
+
+          {(searchTerm || dateFrom || dateTo || paymentMethod || selectedStaffId) && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-slate-400 hover:text-white underline transition-colors"
+            >
+              Clear All Filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error Banner */}
@@ -283,7 +386,7 @@ export default function OrdersHistory() {
         </div>
       )}
 
-      {/* Sales History Table / Card List */}
+      {/* Sales History Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
@@ -314,9 +417,10 @@ export default function OrdersHistory() {
                 <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   <th className="py-3 px-4">Invoice</th>
                   <th className="py-3 px-4">Customer / Patient</th>
+                  <th className="py-3 px-4">Sold By (Staff)</th>
+                  <th className="py-3 px-4">Medicines Summary</th>
                   <th className="py-3 px-4">Date & Time</th>
                   <th className="py-3 px-4">Payment</th>
-                  <th className="py-3 px-4">Dispenser</th>
                   <th className="py-3 px-4 text-right">Total Amount</th>
                   <th className="py-3 px-4 text-center">Receipt & Details</th>
                 </tr>
@@ -356,6 +460,32 @@ export default function OrdersHistory() {
                           )}
                         </td>
 
+                        {/* Sold By (Staff / Pharmacist) */}
+                        <td className="py-3 px-4">
+                          <div>
+                            <div className="font-semibold text-slate-200">{sale.cashier_name || 'SPMS Staff'}</div>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium inline-block mt-0.5 ${
+                                sale.cashier_role === 'Admin'
+                                  ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
+                                  : sale.cashier_role === 'Pharmacist'
+                                  ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-blue-500/10 text-blue-300 border border-blue-500/30'
+                              }`}
+                            >
+                              {sale.cashier_role || 'Staff'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Medicines Quick Preview */}
+                        <td className="py-3 px-4 max-w-xs">
+                          <div className="text-slate-300 font-medium truncate">
+                            {sale.items?.map((it) => `${it.medicine_name} (×${it.quantity})`).join(', ') || 'N/A'}
+                          </div>
+                          <span className="text-[10px] text-slate-500">{sale.items?.length || 0} items sold</span>
+                        </td>
+
                         {/* Date */}
                         <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
                           <div className="flex items-center gap-1">
@@ -380,11 +510,6 @@ export default function OrdersHistory() {
                           >
                             {sale.payment_method || 'Cash'}
                           </span>
-                        </td>
-
-                        {/* Dispenser/Cashier */}
-                        <td className="py-3 px-4 text-slate-300">
-                          {sale.cashier_name || 'SPMS Staff'}
                         </td>
 
                         {/* Total Amount */}
@@ -424,12 +549,12 @@ export default function OrdersHistory() {
                       {/* Expandable Order Detail Rows */}
                       {isExpanded && (
                         <tr className="bg-slate-950/80 border-b border-slate-800/80">
-                          <td colSpan={7} className="p-4">
+                          <td colSpan={8} className="p-4">
                             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-3">
                               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                                 <span className="font-semibold text-xs text-slate-300 flex items-center gap-1.5">
                                   <ClipboardList className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>Dispensed Items for Invoice {sale.invoice_number}</span>
+                                  <span>Dispensed Items for Invoice {sale.invoice_number} (Dispenser: {sale.cashier_name})</span>
                                 </span>
                                 {sale.interaction_override_reason && (
                                   <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded">
@@ -502,6 +627,182 @@ export default function OrdersHistory() {
           onClose={() => setSelectedSaleForReceipt(null)}
           title="Sales Invoice & Receipt"
         />
+      )}
+
+      {/* MODAL: Staff Sales & Medicine Breakdown */}
+      {showBreakdownModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Staff Sales & Medicine Audit</h2>
+                  <p className="text-xs text-slate-400">
+                    Which staff/pharmacist sold which medicines, to which customers, and total revenues
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBreakdownModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {breakdownLoading ? (
+              <div className="py-16 text-center space-y-2">
+                <RotateCw className="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
+                <p className="text-xs text-slate-400">Calculating staff sales breakdown...</p>
+              </div>
+            ) : breakdownData.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-xs">
+                No staff sales records found in system.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Staff Member Selector Pills */}
+                <div className="flex flex-wrap gap-2">
+                  {breakdownData.map((staff) => {
+                    const isSelected = activeStaffTab === staff.user_id;
+                    return (
+                      <button
+                        key={staff.user_id}
+                        onClick={() => setActiveStaffTab(staff.user_id)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                            : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                        }`}
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>{staff.full_name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {staff.role}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected Staff Member Details */}
+                {selectedStaffMemberData && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    {/* KPI overview for this staff */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 block">Total Revenue Generated</span>
+                        <div className="text-lg font-bold text-emerald-400 mt-1">
+                          ${selectedStaffMemberData.total_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 block">Completed Sales Count</span>
+                        <div className="text-lg font-bold text-white mt-1">
+                          {selectedStaffMemberData.total_sales_count} Transactions
+                        </div>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 block">Unique Medicines Sold</span>
+                        <div className="text-lg font-bold text-teal-300 mt-1">
+                          {selectedStaffMemberData.medicines_sold.length} Drug Types
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Which medicines were sold by this staff */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <Pill className="w-4 h-4 text-emerald-400" />
+                          <span>Medicines Sold by {selectedStaffMemberData.full_name}</span>
+                        </h3>
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          {selectedStaffMemberData.medicines_sold.length} Medicines
+                        </span>
+                      </div>
+
+                      <div className="max-h-56 overflow-y-auto divide-y divide-slate-800/60">
+                        {selectedStaffMemberData.medicines_sold.map((med, idx) => (
+                          <div key={idx} className="py-2 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-slate-400 font-mono">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <div className="font-semibold text-slate-200">{med.medicine_name}</div>
+                                <div className="text-[10px] text-slate-500">Total Quantity Sold: {med.total_quantity} units</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-emerald-400">${med.total_revenue.toFixed(2)}</div>
+                              <div className="text-[10px] text-slate-500">Revenue</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Which customers were served by this staff */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <User className="w-4 h-4 text-blue-400" />
+                          <span>Customers Served by {selectedStaffMemberData.full_name}</span>
+                        </h3>
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          {selectedStaffMemberData.customers_served.length} Patients
+                        </span>
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                        {selectedStaffMemberData.customers_served.map((cust, idx) => (
+                          <div key={idx} className="py-2 flex items-center justify-between text-xs">
+                            <div>
+                              <div className="font-semibold text-slate-200">{cust.name}</div>
+                              {cust.phone ? (
+                                <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                                  <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                                  <span>{cust.phone}</span>
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-slate-500 italic">No phone</div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold text-slate-200">${cust.total_spent.toFixed(2)}</div>
+                              <div className="text-[10px] text-slate-500">{cust.orders_count} transactions</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Filter Table Button */}
+                    <div className="flex justify-end pt-2">
+                      <button
+                        onClick={() => {
+                          setSelectedStaffId(selectedStaffMemberData.user_id.toString());
+                          setShowBreakdownModal(false);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                      >
+                        <Filter className="w-3.5 h-3.5" />
+                        <span>Filter Main Table for {selectedStaffMemberData.full_name}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

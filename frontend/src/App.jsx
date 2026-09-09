@@ -16,6 +16,12 @@ import Login from './pages/Login';
 import GlobalAIChatbot from './components/GlobalAIChatbot';
 import { getStoredUser, authApi, medicinesApi } from './services/api';
 
+const ROLE_PERMISSIONS = {
+  Admin: ['dashboard', 'pos', 'orders', 'inventory', 'prescriptions', 'interactions', 'procurement', 'customers', 'staff', 'audit', 'security'],
+  Pharmacist: ['dashboard', 'pos', 'orders', 'inventory', 'prescriptions', 'interactions', 'procurement', 'customers', 'security'],
+  Staff: ['dashboard', 'pos', 'orders', 'inventory', 'interactions', 'customers', 'security'],
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(getStoredUser());
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -29,6 +35,16 @@ export default function App() {
     window.addEventListener('spms:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('spms:unauthorized', handleUnauthorized);
   }, []);
+
+  // RBAC Tab Protection: Automatically redirect unauthorized roles to dashboard
+  useEffect(() => {
+    if (currentUser) {
+      const allowed = ROLE_PERMISSIONS[currentUser.role] || ['dashboard'];
+      if (!allowed.includes(activeTab)) {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [activeTab, currentUser]);
 
   useEffect(() => {
     if (currentUser) {
@@ -51,6 +67,11 @@ export default function App() {
   if (!currentUser) {
     return <Login onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
+
+  const isRoleAllowed = (tab) => {
+    const allowed = ROLE_PERMISSIONS[currentUser.role] || ['dashboard'];
+    return allowed.includes(tab);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-['Inter',sans-serif]">
@@ -77,14 +98,20 @@ export default function App() {
             <Dashboard setActiveTab={setActiveTab} userRole={currentUser.role} />
           )}
           {activeTab === 'pos' && <PosTerminal currentUser={currentUser} />}
-          {activeTab === 'orders' && <OrdersHistory />}
+          {activeTab === 'orders' && <OrdersHistory currentUser={currentUser} />}
           {activeTab === 'inventory' && <Inventory userRole={currentUser.role} />}
-          {activeTab === 'prescriptions' && <Prescriptions userRole={currentUser.role} onNavigateTab={setActiveTab} />}
+          {activeTab === 'prescriptions' && isRoleAllowed('prescriptions') && (
+            <Prescriptions userRole={currentUser.role} onNavigateTab={setActiveTab} />
+          )}
           {activeTab === 'interactions' && <InteractionsChecker />}
-          {activeTab === 'procurement' && <PurchaseOrders userRole={currentUser.role} />}
+          {activeTab === 'procurement' && isRoleAllowed('procurement') && (
+            <PurchaseOrders userRole={currentUser.role} />
+          )}
           {activeTab === 'customers' && <Customers />}
-          {activeTab === 'staff' && <StaffManagement currentUser={currentUser} />}
-          {activeTab === 'audit' && <AuditLogs />}
+          {activeTab === 'staff' && isRoleAllowed('staff') && (
+            <StaffManagement currentUser={currentUser} />
+          )}
+          {activeTab === 'audit' && isRoleAllowed('audit') && <AuditLogs />}
           {activeTab === 'security' && (
             <SecuritySettings currentUser={currentUser} onUserUpdate={setCurrentUser} />
           )}

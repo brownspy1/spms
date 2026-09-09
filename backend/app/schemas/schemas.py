@@ -158,6 +158,8 @@ class SaleResponse(BaseModel):
     interaction_override_reason: Optional[str] = None
     customer_phone: Optional[str] = None
     cashier_name: Optional[str] = None  
+    cashier_role: Optional[str] = None
+    cashier_username: Optional[str] = None
     prescription_id: Optional[int] = None
     created_at: datetime
     items: List[SaleItemResponse]

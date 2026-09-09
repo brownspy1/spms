@@ -16,10 +16,25 @@ import {
   EyeOff,
   UserCheck,
   X,
+  ShieldAlert,
 } from 'lucide-react';
 import { authApi } from '../services/api';
 
 export default function StaffManagement({ currentUser }) {
+  if (currentUser?.role !== 'Admin') {
+    return (
+      <div className="py-20 text-center space-y-4 animate-in fade-in duration-300">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto shadow-lg">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Access Denied (403)</h2>
+        <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+          Staff and User Administration is strictly reserved for Chief Officers and System Administrators. Your role ({currentUser?.role || 'User'}) does not have permission to view or manage user accounts.
+        </p>
+      </div>
+    );
+  }
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

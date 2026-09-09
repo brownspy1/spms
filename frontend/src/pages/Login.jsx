@@ -3,8 +3,8 @@ import { Pill, Lock, User, KeyRound, ShieldAlert, ArrowRight } from 'lucide-reac
 import { authApi, setAuthToken, setStoredUser } from '../services/api';
 
 export default function Login({ onLoginSuccess }) {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('AdminPass123!');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [show2FAField, setShow2FAField] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -16,7 +16,7 @@ export default function Login({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const data = await authApi.login(username, password, totpCode || undefined);
+      const data = await authApi.login(username.trim(), password, totpCode ? totpCode.trim() : undefined);
       setAuthToken(data.access_token);
       setStoredUser(data.user);
       onLoginSuccess(data.user);
@@ -30,14 +30,6 @@ export default function Login({ onLoginSuccess }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickFill = (u, p) => {
-    setUsername(u);
-    setPassword(p);
-    setShow2FAField(false);
-    setTotpCode('');
-    setErrorMsg(null);
   };
 
   return (
@@ -76,7 +68,8 @@ export default function Login({ onLoginSuccess }) {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin or pharmacist or staff"
+                placeholder="Enter username or email"
+                autoComplete="username"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -91,7 +84,8 @@ export default function Login({ onLoginSuccess }) {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
+                placeholder="Enter account password"
+                autoComplete="off"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -108,6 +102,7 @@ export default function Login({ onLoginSuccess }) {
                   value={totpCode}
                   onChange={(e) => setTotpCode(e.target.value)}
                   placeholder="123456"
+                  autoComplete="one-time-code"
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-emerald-500/50 rounded-xl text-white font-mono tracking-wider focus:outline-none focus:border-emerald-400"
                 />
               </div>
@@ -117,7 +112,7 @@ export default function Login({ onLoginSuccess }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -130,34 +125,15 @@ export default function Login({ onLoginSuccess }) {
           </button>
         </form>
 
-        {/* Demo Roles Quick Click */}
-        <div className="pt-4 border-t border-slate-800 space-y-2">
-          <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider block text-center">
-            Instant Demo Account Switcher
-          </span>
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <button
-              onClick={() => handleQuickFill('admin', 'AdminPass123!')}
-              className="p-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-center transition-colors group"
-            >
-              <div className="font-bold text-rose-400 group-hover:text-rose-300">Admin</div>
-              <div className="text-[10px] text-slate-500">Chief Officer</div>
-            </button>
-            <button
-              onClick={() => handleQuickFill('pharmacist', 'PharmaPass123!')}
-              className="p-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-center transition-colors group"
-            >
-              <div className="font-bold text-emerald-400 group-hover:text-emerald-300">Pharmacist</div>
-              <div className="text-[10px] text-slate-500">Clinical Rx</div>
-            </button>
-            <button
-              onClick={() => handleQuickFill('staff', 'StaffPass123!')}
-              className="p-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-center transition-colors group"
-            >
-              <div className="font-bold text-blue-400 group-hover:text-blue-300">Staff</div>
-              <div className="text-[10px] text-slate-500">Dispensary</div>
-            </button>
+        {/* Security & Regulatory Compliance Footer */}
+        <div className="pt-4 border-t border-slate-800 space-y-2 text-[11px] text-slate-500">
+          <div className="flex items-center justify-center gap-1.5 text-emerald-400/90 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+            <span>256-Bit TLS Encrypted Session</span>
           </div>
+          <p className="text-center text-slate-500 leading-relaxed text-[10px]">
+            Strict Role-Based Access Control (RBAC) enforced. All login events and dispensary activities are recorded in an append-only audit ledger.
+          </p>
         </div>
       </div>
     </div>

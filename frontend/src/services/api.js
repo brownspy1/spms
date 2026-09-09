@@ -99,6 +99,7 @@ export const posApi = {
     return request(`/pos/sales${query ? `?${query}` : ''}`);
   },
   getSale: (id) => request(`/pos/sales/${id}`),
+  getStaffSalesBreakdown: () => request('/pos/sales-staff-breakdown'),
 };
 
 // Prescriptions API

@@ -427,4 +427,38 @@ def test_prescription_dispense_and_auto_create_order():
     dispensed_rx = [r for r in rx_check.json() if r["id"] == rx_id][0]
     assert dispensed_rx["status"] == "Dispensed"
 
+def test_staff_sales_breakdown_audit():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.get("/api/pos/sales-staff-breakdown", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    if len(data) > 0:
+        first = data[0]
+        assert "user_id" in first
+        assert "medicines_sold" in first
+        assert "customers_served" in first
+        assert "total_revenue" in first
+
+def test_staff_blocked_from_clinical_interaction_override():
+    login = client.post("/api/auth/login", json={"username": "staff_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Warfarin (id 1) and Aspirin (id 2) trigger a critical/major interaction
+    checkout_payload = {
+        "items": [
+            {"medicine_id": 1, "quantity": 1},
+            {"medicine_id": 2, "quantity": 1}
+        ],
+        "customer_name": "Test Patient",
+        "interaction_override_reason": "Staff attempt"
+    }
+    resp = client.post("/api/pos/checkout", json=checkout_payload, headers=headers)
+    assert resp.status_code == 403
+    assert "Dispensary Staff are not authorized" in resp.json()["detail"]
+
 
