@@ -1,0 +1,1018 @@
+#!/usr/bin/env python3
+"""
+Generate publication-grade Bengali PDF documentation for SPMS (Smart Pharmacy Management System).
+Follows bengali-academic-pdf skill guidelines with Hind Siliguri typography and responsive print CSS.
+"""
+
+import os
+import subprocess
+import shutil
+
+HTML_CONTENT = """<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<title>SPMS - স্মার্ট ফার্মেসি ম্যানেজমেন্ট সিস্টেম ওভারভিউ</title>
+<style>
+@font-face {
+  font-family: 'Siliguri';
+  font-weight: 300;
+  src: url('fonts/HindSiliguri-Light.ttf');
+}
+@font-face {
+  font-family: 'Siliguri';
+  font-weight: 400;
+  src: url('fonts/HindSiliguri-Regular.ttf');
+}
+@font-face {
+  font-family: 'Siliguri';
+  font-weight: 500;
+  src: url('fonts/HindSiliguri-Medium.ttf');
+}
+@font-face {
+  font-family: 'Siliguri';
+  font-weight: 600;
+  src: url('fonts/HindSiliguri-SemiBold.ttf');
+}
+@font-face {
+  font-family: 'Siliguri';
+  font-weight: 700;
+  src: url('fonts/HindSiliguri-Bold.ttf');
+}
+
+:root {
+  --navy-deep: #0b1f38;
+  --navy: #15325b;
+  --navy-light: #23487a;
+  --teal: #0d9488;
+  --teal-dark: #0f766e;
+  --teal-light: #f0fdfa;
+  --teal-border: #ccfbf1;
+  --gold: #d97706;
+  --gold-deep: #b45309;
+  --gold-light: #fffbeb;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --paper: #ffffff;
+  --bg-soft: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Siliguri', sans-serif;
+  color: var(--ink);
+  font-size: 10pt;
+  line-height: 1.6;
+  background: var(--paper);
+}
+
+@page {
+  size: A4;
+  margin: 12mm 14mm 12mm 14mm;
+}
+
+/* Header Banner */
+.doc-header {
+  background: linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 65%, #1a4270 100%);
+  color: #ffffff;
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(11, 31, 56, 0.15);
+}
+
+.doc-header-left {
+  max-width: 72%;
+}
+
+.doc-badge {
+  display: inline-block;
+  background: rgba(13, 148, 136, 0.35);
+  border: 1px solid #14b8a6;
+  color: #5eead4;
+  font-size: 8pt;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-bottom: 5px;
+  letter-spacing: 0.5px;
+}
+
+.doc-title {
+  font-size: 17pt;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.25;
+  color: #ffffff;
+}
+
+.doc-subtitle {
+  font-size: 9pt;
+  color: #cbd5e1;
+  margin-top: 4px;
+}
+
+.doc-header-right {
+  text-align: right;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  padding-left: 15px;
+}
+
+.doc-status {
+  font-size: 8.5pt;
+  color: #fde68a;
+  font-weight: 600;
+}
+
+.doc-version {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 2px;
+}
+
+.doc-meta {
+  font-size: 7.5pt;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* Chapter Headers */
+.chapter {
+  margin-bottom: 14px;
+}
+
+.chapter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--teal);
+  page-break-after: avoid;
+}
+
+.chapter-num {
+  background: var(--navy);
+  color: #ffffff;
+  font-size: 10pt;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.chapter-titles {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chapter-bn {
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.chapter-en {
+  font-size: 8.5pt;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+/* Section Box */
+.section-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+}
+
+/* Feature Grid */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  page-break-inside: avoid;
+}
+
+.card-teal {
+  border-top: 3px solid var(--teal);
+}
+
+.card-gold {
+  border-top: 3px solid var(--gold);
+}
+
+.card-navy {
+  border-top: 3px solid var(--navy);
+}
+
+.card-title {
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--navy-deep);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-desc {
+  font-size: 8.8pt;
+  color: var(--ink);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Tech Pills */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.pill {
+  font-size: 7.8pt;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #334155;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.pill-teal {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  border: 1px solid var(--teal-border);
+}
+
+.pill-gold {
+  background: var(--gold-light);
+  color: var(--gold-deep);
+  border: 1px solid #fde68a;
+}
+
+/* Bullet Points */
+ul.points {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+}
+
+ul.points li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 9pt;
+  line-height: 1.5;
+  margin-bottom: 4px;
+  color: var(--ink);
+  page-break-inside: avoid;
+}
+
+ul.points li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--teal);
+  font-weight: bold;
+}
+
+ul.points li strong {
+  color: var(--navy-deep);
+}
+
+/* Tables */
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.8pt;
+  margin: 6px 0 10px 0;
+}
+
+table.data-table th {
+  background: var(--navy);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid var(--navy);
+}
+
+table.data-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+table.data-table tr:nth-child(even) {
+  background: var(--bg-soft);
+}
+
+.badge-role {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 7.5pt;
+  font-weight: 700;
+}
+
+.badge-admin {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.badge-pharmacist {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.badge-staff {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+/* Workflow steps */
+.workflow-step {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+  page-break-inside: avoid;
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 8.5pt;
+  margin-top: 2px;
+}
+
+.step-content {
+  flex-grow: 1;
+}
+
+.step-title {
+  font-weight: 700;
+  color: var(--navy-deep);
+  font-size: 9.3pt;
+  margin-bottom: 2px;
+}
+
+.step-desc {
+  font-size: 8.6pt;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Callout Box */
+.alert-box {
+  background: #eff6ff;
+  border-left: 3.5px solid #3b82f6;
+  padding: 8px 12px;
+  border-radius: 0 4px 4px 0;
+  margin: 8px 0;
+  font-size: 8.7pt;
+  page-break-inside: avoid;
+}
+
+.alert-warning {
+  background: var(--gold-light);
+  border-left: 3.5px solid var(--gold);
+}
+
+.alert-success {
+  background: var(--teal-light);
+  border-left: 3.5px solid var(--teal);
+}
+
+.page-break {
+  page-break-before: always;
+}
+
+/* Final Page Dedicated Styling */
+.final-page {
+  page-break-before: always;
+  padding-top: 4px;
+}
+
+.credentials-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px 0;
+}
+
+.credentials-table th {
+  background: linear-gradient(90deg, var(--navy-deep), var(--navy));
+  color: #ffffff;
+  font-size: 9pt;
+  font-weight: 600;
+  padding: 8px 10px;
+  border: 1px solid var(--navy-deep);
+}
+
+.credentials-table td {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  font-size: 9pt;
+}
+
+.code-font {
+  font-family: monospace;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.url-box {
+  background: linear-gradient(135deg, #042f2e 0%, #0d9488 100%);
+  color: white;
+  padding: 14px 18px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.url-title {
+  font-size: 9pt;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #99f6e4;
+  font-weight: 600;
+}
+
+.url-link {
+  font-size: 13pt;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 2px;
+}
+
+.footer-stamp {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+  text-align: center;
+  font-size: 8pt;
+  color: #94a3b8;
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 1 ==================== -->
+<header class="doc-header">
+  <div class="doc-header-left">
+    <span class="doc-badge">ENTERPRISE PHARMACY AUTOMATION</span>
+    <h1 class="doc-title">স্মার্ট ফার্মেসি ম্যানেজমেন্ট সিস্টেম (SPMS)</h1>
+    <div class="doc-subtitle">প্রজেক্ট টেকনিক্যাল ওভারভিউ, আর্কিটেকচার, ফিচার ও ইউজার গাইডলাইন</div>
+  </div>
+  <div class="doc-header-right">
+    <div class="doc-status">● LIVE PRODUCTION</div>
+    <div class="doc-version">Version 2.4.0</div>
+    <div class="doc-meta">Railway Deploy 674988e2</div>
+  </div>
+</header>
+
+<!-- Chapter 1 -->
+<section class="chapter">
+  <div class="chapter-bar">
+    <span class="chapter-num">০১</span>
+    <div class="chapter-titles">
+      <span class="chapter-bn">প্রজেক্ট পরিচিতি ও উদ্দেশ্য</span>
+      <span class="chapter-en">EXECUTIVE SUMMARY & OBJECTIVE</span>
+    </div>
+  </div>
+  <p style="margin-top: 4px; font-size: 9.3pt; text-align: justify;">
+    <strong>SPMS (Smart Pharmacy Management System)</strong> হলো আধুনিক রিটেইল এবং ক্লিনিক্যাল ফার্মেসির জন্য তৈরি একটি পূর্ণাঙ্গ, হাই-পারফরম্যান্স ও ক্লাউড-রেডি ইকোসিস্টেম। এতে প্রথাগত ইনভেন্টরি ও পিওএস সফটওয়্যারের সীমাবদ্ধতা কাটিয়ে আধুনিক <strong>Google Gemini 2.5 Flash Vision AI</strong> ইন্টিগ্রেশন এবং <strong>রিয়েল-টাইম ক্লিনিক্যাল ডিসিশন সাপোর্ট (CDS)</strong> যুক্ত করা হয়েছে। প্রেসক্রিপশনের হাতের লেখা যাচাই থেকে শুরু করে মারাত্মক ড্রাগ-ড্রাগ ইন্টারঅ্যাকশন প্রতিরোধ, FEFO ব্যাচ ডিসপেন্সিং এবং অডিট ট্রেইল নিশ্চিত করা—সবকিছুই একটি সমন্বিত প্ল্যাটফর্মে কাজ করে।
+  </p>
+  
+  <div class="grid-3">
+    <div class="card card-teal">
+      <div class="card-title">🎯 শূন্য প্রেসক্রিপশন ভুল</div>
+      <p class="card-desc">AI ভিশন ওসিআরের মাধ্যমে প্রেসক্রিপশন স্ক্যান ও অটো-ভ্যালিডেশন, যা মানুষের ভুল শূন্যে নামিয়ে আনে।</p>
+    </div>
+    <div class="card card-gold">
+      <div class="card-title">⚡ রিয়েল-টাইম ড্রাগ সেফটি</div>
+      <p class="card-desc">কাউন্টার সেলসের সময় ড্রাগ-ড্রাগ ইন্টারঅ্যাকশন (Severe, Moderate, Minor) তাৎক্ষণিক শনাক্তকরণ ও সতর্কবার্তা।</p>
+    </div>
+    <div class="card card-navy">
+      <div class="card-title">🔒 কঠোর ভূমিকা নিয়ন্ত্রণ (RBAC)</div>
+      <p class="card-desc">অ্যাডমিন, রেজিস্টার্ড ফার্মাসিস্ট ও সেলস স্টাফদের নির্দিষ্ট অধিকার নির্ধারণ ও জবাবদিহিতা নিশ্চিতকরণ।</p>
+    </div>
+  </div>
+</section>
+
+<!-- Chapter 2 -->
+<section class="chapter">
+  <div class="chapter-bar">
+    <span class="chapter-num">০২</span>
+    <div class="chapter-titles">
+      <span class="chapter-bn">ব্যবহৃত টেকনোলজি স্ট্যাক ও সিস্টেম আর্কিটেকচার</span>
+      <span class="chapter-en">TECHNOLOGY STACK & ARCHITECTURE</span>
+    </div>
+  </div>
+  
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="color: var(--teal-dark);">⚙️ ব্যাকএন্ড টেকনোলজি (Backend)</div>
+      <ul class="points">
+        <li><strong>FastAPI (Python 3.11):</strong> অ্যাসিনক্রোনাস, আল্ট্রা-ফাস্ট ও টাইপ-সেফ RESTful ওয়েব এপিআই।</li>
+        <li><strong>SQLAlchemy ORM:</strong> শক্তিশালী ডাটাবেজ মডেলিং ও রিলেশনাল কুয়েরি ম্যানেজমেন্ট।</li>
+        <li><strong>SQLite / PostgreSQL Ready:</strong> লোকাল ডেভ ও রেলওয়ে প্রোডাকশন পারসিস্টেন্ট স্টোরেজ।</li>
+        <li><strong>Pydantic v2:</strong> কঠোর ডেটা ভ্যালিডেশন ও স্কিমা সিরিয়ালাইজেশন।</li>
+        <li><strong>Python-Jose & Passlib (Bcrypt):</strong> JWT অথেনটিকেশন ও স্টেট-অব-দ্য-আর্ট পাসওয়ার্ড সিকিউরিটি।</li>
+      </ul>
+      <div class="pills">
+        <span class="pill pill-teal">FastAPI</span>
+        <span class="pill pill-teal">SQLAlchemy</span>
+        <span class="pill pill-teal">JWT</span>
+        <span class="pill pill-teal">Bcrypt</span>
+        <span class="pill pill-teal">Pytest</span>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title" style="color: var(--navy);">💻 ফ্রন্টএন্ড টেকনোলজি (Frontend)</div>
+      <ul class="points">
+        <li><strong>React 18 & Vite:</strong> কম্পোনেন্ট-বেসড লাইটনিং ফাস্ট মডার্ন সিঙ্গেল পেজ অ্যাপ্লিকেশন (SPA)।</li>
+        <li><strong>Tailwind CSS:</strong> প্রিমিয়াম রেসপন্সিভ ও ক্লিন মেডিকেল ড্যাশবোর্ড ডিজাইন সিস্টেম।</li>
+        <li><strong>Lucide React Icons:</strong> লাইটওয়েট ও মডার্ন ক্লিনিক্যাল ভেক্টর আইকন সেট।</li>
+        <li><strong>Axios HTTP Client:</strong> ইন্টারসেপ্টর-যুক্ত বিরামহীন ব্যাকএন্ড এপিআই কমিউনিকেশন।</li>
+        <li><strong>Thermal Receipt Print Engine:</strong> পিওএস কাউন্টারে ৮০মিমি ক্যাশ রসিদ প্রিন্ট সিস্টেম।</li>
+      </ul>
+      <div class="pills">
+        <span class="pill pill-teal">React 18</span>
+        <span class="pill pill-teal">Vite</span>
+        <span class="pill pill-teal">Tailwind</span>
+        <span class="pill pill-teal">Axios</span>
+        <span class="pill pill-teal">Thermal Print</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-gold" style="margin-top: 8px;">
+    <div class="card-title">🤖 কৃত্রিম বুদ্ধিমত্তা ও জেনারেটিভ এআই (AI Engine)</div>
+    <p class="card-desc" style="font-size: 8.9pt;">
+      <strong>Google Gemini 2.5 Flash API:</strong> গুগল-জেনএআই অফিসিয়াল এসডিকে (Official SDK) ব্যবহার করে নিখুঁত প্রেসক্রিপশন ভিশন ওসিআর (Handwritten & Printed OCR) এবং ফার্মাকোলজি চ্যাট অ্যাসিস্ট্যান্ট চালিত। জিরো থিংকিং ল্যাটেন্সি (<code style="font-size:8pt; background:#fef3c7; padding:1px 4px; border-radius:3px;">thinkingBudget: 0</code>) কনফিগারেশনের ফলে রিয়েল-টাইমে মাত্র ১-২ সেকেন্ডে ওষুধ এবং ডোজ এক্সট্রাক্ট হয়।
+    </p>
+  </div>
+</section>
+
+<!-- ==================== PAGE 2 ==================== -->
+<div class="page-break"></div>
+
+<section class="chapter">
+  <div class="chapter-bar">
+    <span class="chapter-num">০৩</span>
+    <div class="chapter-titles">
+      <span class="chapter-bn">প্রধান কার্যকরী মডিউল ও ফিচারসমূহ</span>
+      <span class="chapter-en">CORE FEATURES & CAPABILITIES</span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Feature 1 -->
+    <div class="card card-teal">
+      <div class="card-title">🛒 স্মার্ট পিওএস টার্মিনাল (Smart POS)</div>
+      <ul class="points">
+        <li>ইনস্ট্যান্ট ড্রাগ ও বারকোড সার্চ (ব্র্যান্ড ও জেনেরিক নামসহ)।</li>
+        <li><strong>FEFO স্টক ম্যানেজমেন্ট:</strong> যার মেয়াদ আগে শেষ হবে সেই ব্যাচ থেকে স্বয়ংক্রিয় স্টক কাট।</li>
+        <li>ক্যাশ, কার্ড ও মোবাইল ব্যাংকিং (বিকাশ, নগদ) পেমেন্ট অপশন।</li>
+        <li>৮০মিমি থার্মাল রিসিপ্ট প্রিভিউ ও সরাসরি প্রিন্ট সাপোর্ট।</li>
+      </ul>
+    </div>
+
+    <!-- Feature 2 -->
+    <div class="card card-gold">
+      <div class="card-title">📋 প্রেসক্রিপশন এআই ওসিআর ও অটো-অর্ডার</div>
+      <ul class="points">
+        <li>প্রেসক্রিপশনের ছবি আপলোড করলেই এআই দ্বারা ড্রাগ সনাক্তকরণ।</li>
+        <li>ফার্মেসি ইনভেন্টরির সাথে ফাজি ড্রাগ ও জেনেরিক ম্যাচিং।</li>
+        <li><strong>১-ক্লিক অটো ডিসপেন্স:</strong> এক ক্লিকেই প্রেসক্রিপশনকে সরাসরি ইনভয়েস/সেলে রূপান্তর ও স্টক সমন্বয়।</li>
+        <li>সম্পূর্ণ প্রেসক্রিপশন ফাইল স্টোরেজ ও ইতিহাস সংরক্ষণ।</li>
+      </ul>
+    </div>
+
+    <!-- Feature 3 -->
+    <div class="card card-navy">
+      <div class="card-title">⚠️ ড্রাগ-ড্রাগ ইন্টারঅ্যাকশন সেফটি (CDS)</div>
+      <ul class="points">
+        <li>কার্টে একাধিক ওষুধ যুক্ত হলেই স্বয়ংক্রিয় সেফটি চেক।</li>
+        <li>Severe, Moderate ও Minor মাত্রার সতর্কবার্তা প্রদান।</li>
+        <li><strong>ক্লিনিক্যাল গার্ড:</strong> সেলস স্টাফরা ইন্টারঅ্যাকশন ওভাররাইড করতে পারে না; শুধুমাত্র অনুমোদিত ফার্মাসিস্ট ও অ্যাডমিন কারণ লিখে ওভাররাইড করতে পারেন।</li>
+      </ul>
+    </div>
+
+    <!-- Feature 4 -->
+    <div class="card card-teal">
+      <div class="card-title">📊 অর্ডার ও সেলস হিস্ট্রি (Orders History)</div>
+      <ul class="points">
+        <li>প্রতিটি অর্ডারে কাস্টমারের নাম, ফোন নম্বর ও ইনভয়েস নম্বর ট্র্যাকিং।</li>
+        <li>তারিখ (Date Range), পেমেন্ট মেথড এবং স্টাফ অনুযায়ী ফিল্টারিং।</li>
+        <li>পুরোনো যেকোনো ইনভয়েসের থার্মাল রিসিপ্ট পুনরায় প্রিন্ট করার সুবিধা।</li>
+        <li>প্রেসক্রিপশন থেকে তৈরি হওয়া সেলস স্পষ্টভাবে ব্যাজ চিহ্নিত।</li>
+      </ul>
+    </div>
+
+    <!-- Feature 5 -->
+    <div class="card card-navy">
+      <div class="card-title">👨‍💼 স্টাফ পারফরম্যান্স ও সেলস অডিট</div>
+      <ul class="points">
+        <li>কোন স্টাফ বা ফার্মাসিস্ট কোন ওষুধ বিক্রি করেছে তার বিস্তারিত তালিকা।</li>
+        <li>স্টাফভিত্তিক মোট বিক্রি, রেভিনিউ এবং অর্ডারের সংখ্যা বিশ্লেষণ।</li>
+        <li>ইনভেন্টরি ফ্রড বা স্টক গরমিল রোধে মাল্টি-ইউজার জবাবদিহিতা।</li>
+      </ul>
+    </div>
+
+    <!-- Feature 6 -->
+    <div class="card card-gold">
+      <div class="card-title">📦 ইনভেন্টরি, ব্যাচ ও এক্সপায়ারি ট্র্যাকিং</div>
+      <ul class="points">
+        <li>ওষুধের শক্তি (Strength), প্রস্তুতকারক ও ড্রাগ গ্রুপ শ্রেণিবিভাগ।</li>
+        <li>মেয়াদোত্তীর্ণ হওয়ার ৩০ দিন আগেই কালার-কোডেড লাল সতর্কবার্তা।</li>
+        <li>লো-স্টক থ্রেশহোল্ড অ্যালার্ট ও ব্যাচভিত্তিক কেনাবেচার হিসাব।</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-card" style="margin-top: 6px;">
+    <div class="card-title" style="font-size: 9.8pt; color: var(--navy-deep);">
+      🔐 ভূমিকা ভিত্তিক প্রবেশাধিকার নিয়ন্ত্রণ (Role-Based Access Control - RBAC)
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>মডিউল / ফিচারসমূহ</th>
+          <th>অ্যাডমিন (Admin)</th>
+          <th>ফার্মাসিস্ট (Pharmacist)</th>
+          <th>স্টাফ / ক্যাশিয়ার (Staff)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>পিওএস কাউন্টার ও সেলস</strong></td>
+          <td>সম্পূর্ণ অনুমতি (Full Access)</td>
+          <td>সম্পূর্ণ অনুমতি (Full Access)</td>
+          <td>সম্পূর্ণ অনুমতি (Full Access)</td>
+        </tr>
+        <tr>
+          <td><strong>ড্রাগ ইন্টারঅ্যাকশন ওভাররাইড</strong></td>
+          <td>অনুমতি আছে (With Reason)</td>
+          <td>অনুমতি আছে (Clinical Override)</td>
+          <td><span style="color: #dc2626; font-weight:700;">❌ নিষিদ্ধ (Blocked)</span></td>
+        </tr>
+        <tr>
+          <td><strong>প্রেসক্রিপশন এআই ডিসপেন্স</strong></td>
+          <td>অনুমতি আছে</td>
+          <td>অনুমতি আছে</td>
+          <td>শুধুমাত্র ভিউ (View Only)</td>
+        </tr>
+        <tr>
+          <td><strong>নতুন স্টাফ তৈরি ও পরিচালনা</strong></td>
+          <td><span class="badge-role badge-admin">অ্যাডমিন অনলি</span></td>
+          <td><span style="color: #dc2626; font-weight:700;">❌ নিষিদ্ধ</span></td>
+          <td><span style="color: #dc2626; font-weight:700;">❌ নিষিদ্ধ</span></td>
+        </tr>
+        <tr>
+          <td><strong>অডিট ট্রেইল ও স্টাফ সেলস ব্রেকডাউন</strong></td>
+          <td>সম্পূর্ণ বিবরণ ও রিপোর্ট</td>
+          <td>সীমিত অডিট</td>
+          <td>শুধুমাত্র নিজস্ব সেলস</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== PAGE 3 ==================== -->
+<div class="page-break"></div>
+
+<section class="chapter">
+  <div class="chapter-bar">
+    <span class="chapter-num">০৪</span>
+    <div class="chapter-titles">
+      <span class="chapter-bn">সিস্টেম ব্যবহারের ধাপে ধাপে নির্দেশিকা</span>
+      <span class="chapter-en">HOW TO USE: STEP-BY-STEP WORKFLOW</span>
+    </div>
+  </div>
+
+  <!-- Role 1: Admin Workflow -->
+  <div class="section-card">
+    <div class="card-title" style="color: #991b1b;">
+      <span class="badge-role badge-admin">ভূমিকা: অ্যাডমিন (ADMIN WORKFLOW)</span>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">১</div>
+      <div class="step-content">
+        <div class="step-title">স্টাফ ও ইউজার ম্যানেজমেন্ট</div>
+        <p class="step-desc">লগইন করার পর <strong>Staff Management</strong> ট্যাবে যান। নতুন ফার্মাসিস্ট বা স্টাফের নাম, ইউজারনেম, পাসওয়ার্ড ও রোল নির্ধারণ করে যোগ করুন। যেকোনো কর্মীর অ্যাকাউন্ট নিষ্ক্রিয় বা সক্রিয় করতে পারবেন।</p>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">২</div>
+      <div class="step-content">
+        <div class="step-title">ইনভেন্টরি ও ব্যাচ কনফিগারেশন</div>
+        <p class="step-desc"><strong>Inventory</strong> ট্যাবে নতুন মেডিসিন ও সাপ্লায়ারের ব্যাচ (উৎপাদন ও মেয়াদোত্তীর্ণ তারিখসহ) যুক্ত করুন। লো-স্টক লিমিট সেট করে দিন।</p>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">৩</div>
+      <div class="step-content">
+        <div class="step-title">সেলস অডিট ও রাজস্ব বিশ্লেষণ</div>
+        <p class="step-desc"><strong>Orders</strong> ট্যাবে গিয়ে <strong>Staff Sales Breakdown</strong> বোতামে ক্লিক করে দেখতে পারবেন কোন কর্মী কতগুলো ওষুধ বিক্রি করেছে এবং কত টাকা সংগ্রহ করেছে।</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role 2: Pharmacist Workflow -->
+  <div class="section-card">
+    <div class="card-title" style="color: #1e40af;">
+      <span class="badge-role badge-pharmacist">ভূমিকা: রেজিস্টার্ড ফার্মাসিস্ট (PHARMACIST WORKFLOW)</span>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">১</div>
+      <div class="step-content">
+        <div class="step-title">প্রেসক্রিপশন আপলোড ও এআই স্ক্যান</div>
+        <p class="step-desc"><strong>Prescriptions</strong> ট্যাবে গিয়ে নতুন প্রেসক্রিপশন ইমেজ আপলোড করুন। <strong>Extract with AI</strong> বাটনে ক্লিক করলে জেমিনি এআই তাৎক্ষণিকভাবে ওষুধের তালিকা ও ডোজ বের করে আনবে।</p>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">২</div>
+      <div class="step-content">
+        <div class="step-title">ড্রাগ সেফটি রিভিউ ও অটো-অর্ডার তৈরি</div>
+        <p class="step-desc">এক্সট্রাক্ট করা ওষুধগুলোর সেফটি ও স্টক যাচাই করে <strong>Dispense & Create Order</strong> বাটনে চাপ দিন। সিস্টেম স্বয়ংক্রিয়ভাবে FEFO পদ্ধতিতে নিকটবর্তী মেয়াদের ব্যাচ থেকে ইনভেন্টরি স্টক কেটে সেলস অর্ডার তৈরি করে দিবে।</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role 3: Staff Workflow -->
+  <div class="section-card">
+    <div class="card-title" style="color: #166534;">
+      <span class="badge-role badge-staff">ভূমিকা: কাউন্টার স্টাফ / ক্যাশিয়ার (STAFF WORKFLOW)</span>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">১</div>
+      <div class="step-content">
+        <div class="step-title">দ্রুত পিওএস চেকআউট ও রসিদ প্রদান</div>
+        <p class="step-desc"><strong>POS Terminal</strong>-এ এসে ওষুধের নাম টাইপ করে কার্টে যোগ করুন। কাস্টমারের নাম ও মোবাইল নম্বর লিখুন। পেমেন্ট মেথড (Cash / MFS) সিলেক্ট করে <strong>Complete Sale</strong> চাপলেই থার্মাল রিসিপ্ট জেনারেট হবে।</p>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-number">২</div>
+      <div class="step-content">
+        <div class="step-title">ড্রাগ ইন্টারঅ্যাকশন সতর্কীকরণ</div>
+        <p class="step-desc">যদি কোনো রোগীর জন্য বিপজ্জনক ড্রাগ সংমিশ্রণ নির্বাচিত হয়, স্ক্রিনে লাল সতর্কবার্তা আসবে। স্টাফরা এটি নিজে ডিসপেন্স না করে অন-ডিউটি ফার্মাসিস্টকে অবহিত করবেন।</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Chapter 5 -->
+<section class="chapter">
+  <div class="chapter-bar">
+    <span class="chapter-num">০৫</span>
+    <div class="chapter-titles">
+      <span class="chapter-bn">হোস্টিং, ইনফ্রাস্ট্রাকচার ও সিআই/সিডি গাইড</span>
+      <span class="chapter-en">HOSTING & INFRASTRUCTURE</span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="color: var(--teal-dark);">☁️ রেলওয়ে প্ল্যাটফর্ম হোস্টিং (Railway PaaS)</div>
+      <p class="card-desc">SPMS প্রজেক্টটি বিশ্বের অন্যতম নির্ভরযোগ্য ক্লাউড প্ল্যাটফর্ম <strong>Railway.app</strong>-এ কনটেইনারাইজড মোডে হোস্ট করা হয়েছে। এতে রয়েছে স্বয়ংক্রিয় SSL সার্টিফিকেট (HTTPS), অটো-হিলিং এবং জিরো-ডাউনটাইম লাইভ ট্রাফিক ম্যানেজমেন্ট।</p>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color: var(--navy);">🐳 মাল্টি-স্টেজ ডকার ইঞ্জিন (Dockerfile)</div>
+      <p class="card-desc">ফ্রন্টএন্ড রিঅ্যাক্ট অ্যাপ্লিকেশনকে Node.js পরিবেশে প্রোডাকশন অপ্টিমাইজড অ্যাসেটে বিল্ড করে পাইথন FastAPI ব্যাকএন্ডের ভেতরে একক কনটেইনারে পরিবেশন করা হয়, যা মেমোরি ও সিপিইউ খরচ নূন্যতম রাখে।</p>
+    </div>
+  </div>
+
+  <div class="alert-box alert-success">
+    <strong>অটোমেটেড গিটহাব সিআই/সিডি (GitHub CI/CD):</strong> গিটহাব রিপোজিটরির <code>main</code> ব্রাঞ্চে যেকোনো নতুন ফিচার বা বাগ ফিক্স পুশ করার সাথে সাথে রেলওয়ে স্বয়ংক্রিয়ভাবে টেস্ট রান করে কনটেইনার রি-বিল্ড ও লাইভ ডিপ্লয়মেন্ট সম্পন্ন করে।
+  </div>
+</section>
+
+<!-- ==================== PAGE 4 (FINAL PAGE) ==================== -->
+<div class="final-page">
+  <section class="chapter">
+    <div class="chapter-bar">
+      <span class="chapter-num">০৬</span>
+      <div class="chapter-titles">
+        <span class="chapter-bn">সিস্টেম অ্যাক্সেস, ডেমো ক্রেডেনশিয়ালস ও ডিপ্লয়মেন্ট লিংক</span>
+        <span class="chapter-en">ACCESS CREDENTIALS & DEPLOYMENT LINKS</span>
+      </div>
+    </div>
+
+    <!-- Live URL Callout Box -->
+    <div class="url-box">
+      <div>
+        <div class="url-title">🌐 লাইভ ক্লাউড অ্যাপ্লিকেশন ইউআরএল (Live Production URL)</div>
+        <div class="url-link">https://spms-production.up.railway.app</div>
+      </div>
+      <div style="text-align: right;">
+        <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 8.5pt; font-weight:700;">
+          SSL SECURED (HTTPS)
+        </span>
+      </div>
+    </div>
+
+    <!-- GitHub Repo Box -->
+    <div class="section-card" style="margin-bottom: 12px; padding: 10px 14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-weight:700; color:var(--navy-deep); font-size:9.5pt;">📦 অফিশিয়াল গিটহাব রিপোজিটরি (Source Code):</span><br>
+          <code style="font-size:9pt; color:var(--teal-dark); font-weight:700;">https://github.com/brownspy1/spms</code>
+        </div>
+        <span class="badge-role" style="background:#e0e7ff; color:#3730a3;">Branch: main</span>
+      </div>
+    </div>
+
+    <!-- Credentials Table -->
+    <div class="section-card">
+      <div class="card-title" style="color: var(--navy-deep); font-size: 10.5pt; margin-bottom: 6px;">
+        🔑 সিস্টেম ব্যবহারকারী লগইন ক্রেডেনশিয়ালস (System Login Accounts)
+      </div>
+      <p style="font-size:8.6pt; color:var(--muted); margin-bottom: 8px;">
+        সিস্টেমের বিভিন্ন মডিউল ও পারমিশন পরীক্ষা করতে নিচের যেকোনো অ্যাকাউন্ট দিয়ে লগইন করুন:
+      </p>
+
+      <table class="credentials-table">
+        <thead>
+          <tr>
+            <th>ব্যবহারকারী ভূমিকা (Role)</th>
+            <th>ইউজারনেম (Username)</th>
+            <th>পাসওয়ার্ড (Password)</th>
+            <th>অনুমোদিত ক্ষমতা ও ক্ষেত্রসমূহ (Permissions)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="badge-role badge-admin">Admin</span><br>
+              <span style="font-size:7.5pt; color:var(--muted);">প্রধান পরিচালক / অ্যাডমিনিস্ট্রেটর</span>
+            </td>
+            <td><span class="code-font">admin</span></td>
+            <td><span class="code-font">AdminPass123!</span></td>
+            <td style="font-size:8.5pt;">
+              সম্পূর্ণ সিস্টেমে ফুল অ্যাক্সেস, নতুন স্টাফ যোগ/ডিলিট, ইনভেন্টরি কন্ট্রোল, সেলস ও অডিট ট্রেইল পর্যবেক্ষণ।
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-role badge-pharmacist">Pharmacist</span><br>
+              <span style="font-size:7.5pt; color:var(--muted);">ক্লিনিক্যাল ফার্মাসিস্ট</span>
+            </td>
+            <td><span class="code-font">pharmacist</span></td>
+            <td><span class="code-font">PharmaPass123!</span></td>
+            <td style="font-size:8.5pt;">
+              প্রেসক্রিপশন এআই ওসিআর স্ক্যান, ড্রাগ ইন্টারঅ্যাকশন ক্লিনিক্যাল ওভাররাইড, অটো-অর্ডার ডিসপেন্সিং।
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="badge-role badge-staff">Staff</span><br>
+              <span style="font-size:7.5pt; color:var(--muted);">সেলস কর্মী / ক্যাশিয়ার</span>
+            </td>
+            <td><span class="code-font">staff</span></td>
+            <td><span class="code-font">StaffPass123!</span></td>
+            <td style="font-size:8.5pt;">
+              পিওএস কাউন্টার চেকআউট, থার্মাল রিসিপ্ট প্রিন্টিং, ও কাস্টমার ইনভয়েস সার্চ। (ক্লিনিক্যাল ওভাররাইড নিষিদ্ধ)।
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Security & Config Notes -->
+    <div class="grid-2" style="margin-top: 10px;">
+      <div class="card card-gold">
+        <div class="card-title" style="font-size: 9.3pt;">🛡️ প্রোডাকশন সিকিউরিটি পরামর্শ</div>
+        <ul class="points" style="font-size: 8.4pt;">
+          <li>প্রথমবার লগইন করার পরপরই অ্যাডমিন অ্যাকাউন্টের ডিফল্ট পাসওয়ার্ড পরিবর্তন করা বাঞ্ছনীয়।</li>
+          <li>রেলওয়ে ভেরিয়েবল প্যানেলে <code>JWT_SECRET</code> পরিবর্তন করে নিজস্ব নিরাপদ কি প্রদান করুন।</li>
+          <li>রেলওয়ে ভলিউম মাউন্ট করে <code>spms.db</code> ডাটাবেজ ফাইল সর্বদা ব্যাকআপ রাখুন।</li>
+        </ul>
+      </div>
+
+      <div class="card card-teal">
+        <div class="card-title" style="font-size: 9.3pt;">⚙️ এআই কী কনফিগারেশন</div>
+        <ul class="points" style="font-size: 8.4pt;">
+          <li>সিস্টেমের প্রেসক্রিপশন এআই ওসিআর ফিচার গুগল ক্লাউডের ফ্রি/পেইড <code>GEMINI_API_KEY</code> এর সাথে সংযুক্ত।</li>
+          <li>নতুন বা নিজস্ব এআই কি যোগ করতে রেলওয়ে ড্যাশবোর্ডের Environment Variables-এ কি আপডেট করুন।</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer Stamp -->
+    <div class="footer-stamp">
+      © 2026 SPMS (Smart Pharmacy Management System) • Developed with FastAPI, React, Vite & Google Gemini AI • All Rights Reserved.
+    </div>
+  </section>
+</div>
+
+</body>
+</html>
+"""
+
+def main():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(base_dir, ".."))
+    
+    html_file = os.path.join(base_dir, "spms_overview.html")
+    pdf_file_docs = os.path.join(base_dir, "SPMS_Project_Overview.pdf")
+    pdf_file_root = os.path.join(project_root, "SPMS_Project_Overview.pdf")
+    
+    # Also copy to artifacts dir
+    artifacts_dir = "/Users/brownspy1/.gemini/antigravity/brain/2eed6ced-87c3-422e-a95f-888bd0bc830d"
+    pdf_file_artifact = os.path.join(artifacts_dir, "SPMS_Project_Overview.pdf")
+    
+    print(f"Writing HTML to: {html_file}")
+    with open(html_file, "w", encoding="utf-8") as f:
+        f.write(HTML_CONTENT)
+        
+    chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    cmd = [
+        chrome_path,
+        "--headless",
+        "--disable-gpu",
+        "--no-pdf-header-footer",
+        f"--print-to-pdf={pdf_file_docs}",
+        html_file
+    ]
+    
+    print("Compiling PDF with Google Chrome headless...")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("Chrome error:", result.stderr)
+        return
+        
+    print(f"Generated PDF: {pdf_file_docs} ({os.path.getsize(pdf_file_docs)} bytes)")
+    
+    # Copy to project root and artifacts
+    shutil.copyfile(pdf_file_docs, pdf_file_root)
+    print(f"Copied to project root: {pdf_file_root}")
+    
+    if os.path.exists(artifacts_dir):
+        shutil.copyfile(pdf_file_docs, pdf_file_artifact)
+        print(f"Copied to artifact dir: {pdf_file_artifact}")
+        
+    # Render PNG pages for visual QA
+    print("Rendering PNG pages for visual inspection...")
+    page_prefix = os.path.join(base_dir, "page")
+    cmd_ppm = ["pdftoppm", "-png", "-r", "150", pdf_file_docs, page_prefix]
+    subprocess.run(cmd_ppm, check=True)
+    
+    # List generated pages
+    pages = sorted([p for p in os.listdir(base_dir) if p.startswith("page-") and p.endswith(".png")])
+    print(f"Rendered {len(pages)} pages: {', '.join(pages)}")
+
+if __name__ == "__main__":
+    main()
