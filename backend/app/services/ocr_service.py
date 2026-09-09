@@ -176,13 +176,17 @@ async def extract_prescription_data(file_content: bytes, filename: str, mime_typ
             ]
         }
 
-        # Try gemini-2.5-flash first, then gemini-2.5-flash-lite, then gemini-flash-latest, then gemini-2.5-pro
-        vision_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-pro"]
+        # Try gemini-2.5-flash first, then gemini-flash-latest, then gemini-2.5-pro
+        vision_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"]
         for model_name in vision_models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+                req_payload = dict(payload)
+                if "2.5" in model_name:
+                    req_payload["generationConfig"] = {"thinkingConfig": {"thinkingBudget": 0}}
+
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    res = await client.post(url, json=payload)
+                    res = await client.post(url, json=req_payload)
                     if res.status_code == 200:
                         resp_json = res.json()
                         parts = resp_json.get("candidates", [{}])[0].get("content", {}).get("parts", [])

@@ -60,13 +60,17 @@ async def consult_ai_assistant(
             ]
         }
 
-        # Try gemini-2.5-flash, then gemini-2.5-flash-lite, then gemini-flash-latest
-        models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"]
+        # Try gemini-2.5-flash (with low-latency thinkingBudget 0), gemini-flash-latest, then gemini-2.5-pro
+        models_to_try = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"]
         for model_name in models_to_try:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={active_gemini_key}"
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    res = await client.post(url, json=payload)
+                req_payload = dict(payload)
+                if "2.5" in model_name:
+                    req_payload["generationConfig"] = {"thinkingConfig": {"thinkingBudget": 0}}
+                
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    res = await client.post(url, json=req_payload)
                     if res.status_code == 200:
                         data = res.json()
                         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
