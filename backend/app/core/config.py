@@ -42,3 +42,16 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 settings = Settings()
+
+def get_gemini_api_key(db=None) -> str:
+    """Returns dynamic Gemini API key from DB or fallback to environment variable."""
+    if db:
+        try:
+            from backend.app.models.models import SystemSetting
+            setting = db.query(SystemSetting).filter(SystemSetting.key == "GEMINI_API_KEY").first()
+            if setting and setting.value and setting.value.strip():
+                return setting.value.strip()
+        except Exception:
+            pass
+    return settings.GEMINI_API_KEY or ""
+

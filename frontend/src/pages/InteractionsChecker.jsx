@@ -12,7 +12,8 @@ import {
   X,
   BookOpen,
 } from 'lucide-react';
-import { interactionsApi } from '../services/api';
+import { interactionsApi, settingsApi } from '../services/api';
+import FormattedAIResponse from '../components/FormattedAIResponse';
 
 const COMMON_DRUGS = [
   'Warfarin',
@@ -50,6 +51,13 @@ export default function InteractionsChecker() {
     },
   ]);
   const [consultingAI, setConsultingAI] = useState(false);
+  const [aiConfig, setAiConfig] = useState(null);
+
+  React.useEffect(() => {
+    settingsApi.getAI()
+      .then((data) => setAiConfig(data))
+      .catch((err) => console.log('Could not load AI config:', err));
+  }, []);
 
   const addDrug = (drug) => {
     const trimmed = drug.trim();
@@ -303,14 +311,16 @@ export default function InteractionsChecker() {
             </div>
             <div>
               <h2 className="font-bold text-white text-xs leading-tight">AI Clinical Assistant</h2>
-              <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>Anti-Prompt Injection & PII Masked</span>
+              <div className="text-[10px] flex items-center gap-1.5 mt-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${aiConfig?.is_configured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                <span className={aiConfig?.is_configured ? 'text-emerald-400 font-medium' : 'text-slate-400'}>
+                  {aiConfig?.is_configured ? 'Gemini 1.5 Flash Connected' : 'SPMS Pharmacology Engine'}
+                </span>
               </div>
             </div>
           </div>
-          <span className="text-[10px] text-slate-500 px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
-            Decision Support
+          <span className="text-[10px] text-slate-400 px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+            Clinical Decision Support
           </span>
         </div>
 
@@ -328,13 +338,17 @@ export default function InteractionsChecker() {
               )}
 
               <div
-                className={`max-w-[85%] rounded-2xl p-3 space-y-1.5 ${
+                className={`max-w-[85%] rounded-2xl p-3.5 space-y-1.5 ${
                   msg.role === 'user'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'bg-slate-950 border border-slate-800 text-slate-200'
                 }`}
               >
-                <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+                {msg.role === 'assistant' ? (
+                  <FormattedAIResponse text={msg.text} />
+                ) : (
+                  <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+                )}
                 {msg.disclaimer && (
                   <div className="text-[9px] text-slate-500 pt-1.5 border-t border-slate-800/80 leading-normal">
                     {msg.disclaimer}

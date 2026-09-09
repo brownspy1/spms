@@ -206,3 +206,50 @@ def test_audit_trail_recorded():
     # Audit log should contain LOGIN_SUCCESS
     actions = [l["action"] for l in logs]
     assert "LOGIN_SUCCESS" in actions
+
+def test_gemini_api_settings_and_update():
+    # Login as Admin
+    admin_login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 1. Get AI settings
+    get_resp = client.get("/api/settings/ai", headers=admin_headers)
+    assert get_resp.status_code == 200
+    assert "is_configured" in get_resp.json()
+
+    # 2. Update AI settings as Admin
+    update_resp = client.post("/api/settings/ai", json={"gemini_api_key": "AIzaSyMockTestKey12345"}, headers=admin_headers)
+    assert update_resp.status_code == 200
+    assert update_resp.json()["status"] == "success"
+
+    # 3. Verify updated masked key
+    get_resp_after = client.get("/api/settings/ai", headers=admin_headers)
+    assert get_resp_after.status_code == 200
+    assert get_resp_after.json()["is_configured"] is True
+    assert "AIzaSy" in get_resp_after.json()["masked_key"]
+
+    # 4. RBAC check: Staff role cannot update Gemini settings
+    staff_login = client.post("/api/auth/login", json={"username": "staff_test", "password": "TestPass123!"})
+    staff_token = staff_login.json()["access_token"]
+    staff_headers = {"Authorization": f"Bearer {staff_token}"}
+    staff_update = client.post("/api/settings/ai", json={"gemini_api_key": "HackerKey"}, headers=staff_headers)
+    assert staff_update.status_code == 403
+
+def test_prescription_preview_ocr():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Valid JPEG with magic bytes \xff\xd8\xff
+    fake_jpeg = b"\xff\xd8\xff" + b"MockPrescriptionContent" * 10
+    files = {"file": ("test_rx.jpg", fake_jpeg, "image/jpeg")}
+    
+    resp = client.post("/api/prescriptions/preview-ocr", files=files, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "doctor_name" in data
+    assert "customer_name" in data
+    assert "extracted_medicines" in data
+    assert "ocr_engine" in data
+

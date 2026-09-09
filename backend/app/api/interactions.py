@@ -67,11 +67,12 @@ def check_drug_interactions(
 @router.post("/consult-ai", response_model=AIConsultResponse)
 async def consult_clinical_ai(
     req: AIConsultRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Clinical decision support AI assistant.
     Features prompt injection filtering, PII masking, and evidence-based pharmacology advice.
     """
-    result = await consult_ai_assistant(req.prompt, req.context_drugs)
+    result = await consult_ai_assistant(req.prompt, req.context_drugs, db=db)
     return result

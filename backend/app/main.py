@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from backend.app.core.config import settings
 from backend.app.database import engine, Base
 from backend.app.api import (
-    auth, medicines, pos, prescriptions, purchase_orders, interactions, audit, analytics, customers
+    auth, medicines, pos, prescriptions, purchase_orders, interactions, audit, analytics, customers, settings_api
 )
 
 # Initialize database schema
@@ -50,6 +50,7 @@ app.include_router(interactions.router, prefix=settings.API_V1_STR)
 app.include_router(audit.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(customers.router, prefix=settings.API_V1_STR)
+app.include_router(settings_api.router, prefix=settings.API_V1_STR)
 
 # Uploads directory
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")

@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Optional
 import httpx
 
-from backend.app.core.config import settings
+from backend.app.core.config import settings, get_gemini_api_key
 from backend.app.core.sanitization import sanitize_and_check_prompt_injection, mask_pii
 from backend.app.core.interactions_data import find_interactions
 
@@ -13,7 +13,11 @@ DISCLAIMER = (
     "dispensing decisions against patient medical charts and lab values."
 )
 
-async def consult_ai_assistant(prompt: str, context_drugs: Optional[List[str]] = None) -> Dict[str, str]:
+async def consult_ai_assistant(
+    prompt: str,
+    context_drugs: Optional[List[str]] = None,
+    db: Any = None
+) -> Dict[str, str]:
     """
     Evaluates clinical inquiries from pharmacists, applies prompt injection protection,
     checks structured drug interactions, and returns pharmacological guidance.
@@ -31,10 +35,11 @@ async def consult_ai_assistant(prompt: str, context_drugs: Optional[List[str]] =
     if context_drugs:
         matched_interactions = find_interactions(context_drugs)
 
-    # Step 3: If external LLM API key (GEMINI_API_KEY or OPENAI_API_KEY) is configured, call it securely
-    if settings.GEMINI_API_KEY:
+    # Step 3: If Gemini API key is configured (dynamic in DB or env), call Gemini
+    active_gemini_key = get_gemini_api_key(db)
+    if active_gemini_key:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={active_gemini_key}"
             sys_prompt = (
                 "You are an expert clinical pharmacy assistant for a Smart Pharmacy Management System (SPMS). "
                 "Provide accurate, concise, and professional pharmacology guidance. "

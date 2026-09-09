@@ -34,6 +34,27 @@ def list_prescriptions(
         query = query.filter(Prescription.status == status)
     return query.order_by(Prescription.created_at.desc()).all()
 
+@router.post("/preview-ocr")
+async def preview_ocr_prescription(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Real-time prescription OCR preview:
+    Triggers as soon as a file is selected, returning parsed medicines,
+    patient name, prescriber, and OCR engine used (Gemini Vision or local clinical engine).
+    """
+    content = await file.read()
+    validate_uploaded_file(file, content)
+    ocr_result = await extract_prescription_data(
+        content,
+        file.filename or "prescription.jpg",
+        mime_type=file.content_type or "image/jpeg",
+        db=db
+    )
+    return ocr_result
+
 @router.post("/upload", response_model=PrescriptionResponse)
 async def upload_prescription(
     file: UploadFile = File(...),
@@ -48,7 +69,7 @@ async def upload_prescription(
     Secure prescription upload:
     - Validates file extension, MIME type, and magic bytes.
     - Limits size to 5MB.
-    - Runs clinical OCR text and medicine detection.
+    - Runs clinical OCR text and medicine detection (Gemini Vision if key provided).
     - Applies 90-day retention deadline.
     - Logs audit trail.
     """
@@ -62,8 +83,13 @@ async def upload_prescription(
     with open(saved_path, "wb") as f:
         f.write(content)
 
-    # Perform clinical OCR & parsing
-    ocr_result = extract_prescription_data(content, file.filename)
+    # Perform clinical OCR & parsing (with Gemini Vision support)
+    ocr_result = await extract_prescription_data(
+        content,
+        file.filename or "prescription.jpg",
+        mime_type=file.content_type or "image/jpeg",
+        db=db
+    )
 
     retention_date = datetime.now(timezone.utc) + timedelta(days=settings.PRESCRIPTION_RETENTION_DAYS)
 

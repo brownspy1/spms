@@ -213,3 +213,16 @@ class AuditLog(Base):
     after_values = Column(Text, nullable=True)   # JSON-encoded snapshot
     ip_address = Column(String(100), nullable=True)
     details = Column(Text, nullable=True)
+
+class SystemSetting(Base):
+    """
+    Dynamic application configuration storage (e.g. GEMINI_API_KEY, retention days).
+    Allows administrators to configure AI keys directly in the dashboard UI.
+    """
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value = Column(Text, nullable=False)
+    description = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

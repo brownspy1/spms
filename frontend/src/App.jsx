@@ -16,8 +16,7 @@ import { getStoredUser, authApi, medicinesApi } from './services/api';
 export default function App() {
   const [currentUser, setCurrentUser] = useState(getStoredUser());
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [expiringCount, setExpiringCount] = useState(0);
+  const [alertsData, setAlertsData] = useState({ lowStock: [], expiring: [] });
 
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -39,8 +38,7 @@ export default function App() {
         medicinesApi.getLowStockAlerts(),
         medicinesApi.getExpiringAlerts(90),
       ]);
-      setLowStockCount(lowStock.length);
-      setExpiringCount(expiring.length);
+      setAlertsData({ lowStock: lowStock || [], expiring: expiring || [] });
     } catch (e) {
       console.error('Failed to load alert badges:', e);
     }
@@ -55,8 +53,9 @@ export default function App() {
       <Navbar
         currentUser={currentUser}
         onUserChange={setCurrentUser}
-        lowStockCount={lowStockCount}
-        expiringCount={expiringCount}
+        alertsData={alertsData}
+        onNavigateTab={setActiveTab}
+        onRefreshAlerts={loadSystemAlerts}
       />
 
       <div className="flex-1 flex overflow-hidden">

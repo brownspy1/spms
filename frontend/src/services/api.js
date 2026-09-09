@@ -110,6 +110,11 @@ export const prescriptionsApi = {
       method: 'POST',
       body: formData,
     }),
+  previewOCR: (formData) =>
+    request('/prescriptions/preview-ocr', {
+      method: 'POST',
+      body: formData,
+    }),
   updateStatus: (id, newStatus) =>
     request(`/prescriptions/${id}/status?new_status=${newStatus}`, { method: 'PUT' }),
   cleanupRetention: () => request('/prescriptions/retention/cleanup', { method: 'POST' }),
@@ -160,3 +165,19 @@ export const customersApi = {
   create: (data) => request('/customers', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 };
+
+// System Settings API
+export const settingsApi = {
+  getAI: () => request('/settings/ai'),
+  updateAI: (geminiApiKey) =>
+    request('/settings/ai', {
+      method: 'POST',
+      body: JSON.stringify({ gemini_api_key: geminiApiKey }),
+    }),
+  testAI: (apiKey = null) =>
+    request('/settings/ai/test', {
+      method: 'POST',
+      body: JSON.stringify({ api_key: apiKey }),
+    }),
+};
+

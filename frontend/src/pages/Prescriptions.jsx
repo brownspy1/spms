@@ -10,6 +10,11 @@ import {
   Eye,
   X,
   AlertCircle,
+  Sparkles,
+  Pill,
+  RefreshCw,
+  CheckCircle2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { prescriptionsApi } from '../services/api';
 
@@ -19,9 +24,12 @@ export default function Prescriptions({ userRole }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRx, setSelectedRx] = useState(null);
 
-  // Upload modal
+  // Upload modal & Auto-OCR state
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrPreview, setOcrPreview] = useState(null);
   const [customerName, setCustomerName] = useState('');
   const [doctorName, setDoctorName] = useState('');
   const [notes, setNotes] = useState('');
@@ -44,6 +52,56 @@ export default function Prescriptions({ userRole }) {
     }
   };
 
+  const handleCloseModal = () => {
+    setShowUploadModal(false);
+    setUploadFile(null);
+    setImagePreviewUrl(null);
+    setOcrPreview(null);
+    setOcrScanning(false);
+    setCustomerName('');
+    setDoctorName('');
+    setNotes('');
+    setUploadError(null);
+  };
+
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+    setUploadFile(file);
+    setUploadError(null);
+    setOcrPreview(null);
+
+    // Create thumbnail preview if image
+    if (file.type && file.type.startsWith('image/')) {
+      setImagePreviewUrl(URL.createObjectURL(file));
+    } else {
+      setImagePreviewUrl(null);
+    }
+
+    // Automatically trigger instant multimodal OCR extraction
+    setOcrScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await prescriptionsApi.previewOCR(formData);
+      setOcrPreview(res);
+
+      if (res.customer_name) {
+        setCustomerName(res.customer_name);
+      }
+      if (res.doctor_name) {
+        setDoctorName(res.doctor_name);
+      }
+      if (res.notes) {
+        setNotes(res.notes);
+      }
+    } catch (err) {
+      console.warn('Auto-OCR preview note:', err);
+      setUploadError(`Auto-OCR Note: ${err.message}. You can still review or edit details manually.`);
+    } finally {
+      setOcrScanning(false);
+    }
+  };
+
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!uploadFile) return;
@@ -58,11 +116,7 @@ export default function Prescriptions({ userRole }) {
       if (notes) formData.append('notes', notes);
 
       await prescriptionsApi.upload(formData);
-      setShowUploadModal(false);
-      setUploadFile(null);
-      setCustomerName('');
-      setDoctorName('');
-      setNotes('');
+      handleCloseModal();
       loadPrescriptions();
     } catch (err) {
       setUploadError(err.message);
@@ -246,13 +300,21 @@ export default function Prescriptions({ userRole }) {
         })}
       </div>
 
-      {/* MODAL: Upload Prescription */}
+      {/* MODAL: Upload Prescription with Real-time Auto-OCR */}
       {showUploadModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-white">Upload Patient Prescription</h2>
-              <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-white">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Upload Patient Prescription</h2>
+                  <p className="text-[11px] text-slate-400">Multimodal AI automatically extracts handwriting, doctor, and medications</p>
+                </div>
+              </div>
+              <button onClick={handleCloseModal} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -263,52 +325,149 @@ export default function Prescriptions({ userRole }) {
               </div>
             )}
 
-            <form onSubmit={handleUpload} className="space-y-3 text-xs">
-              <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-2xl p-6 text-center cursor-pointer bg-slate-950 transition-colors">
+            <form onSubmit={handleUpload} className="space-y-4 text-xs">
+              {/* Drop / Select zone */}
+              <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-2xl p-5 text-center cursor-pointer bg-slate-950 transition-colors">
                 <input
                   type="file"
-                  required
+                  required={!uploadFile}
                   accept="image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={(e) => setUploadFile(e.target.files[0])}
+                  onChange={(e) => handleFileSelect(e.target.files[0])}
                   className="hidden"
                   id="rx-upload-input"
                 />
                 <label htmlFor="rx-upload-input" className="cursor-pointer block space-y-2">
-                  <UploadCloud className="w-8 h-8 text-emerald-400 mx-auto" />
-                  <div className="text-slate-300 font-semibold">
-                    {uploadFile ? uploadFile.name : 'Select or drop prescription file'}
-                  </div>
-                  <div className="text-[11px] text-slate-500">JPG, PNG, WebP, or PDF (Max 5MB)</div>
+                  {imagePreviewUrl ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="relative group max-w-xs mx-auto">
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Prescription Preview"
+                          className="max-h-36 rounded-xl border border-slate-700 object-contain shadow-md mx-auto"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 rounded-xl flex items-center justify-center transition-opacity text-white text-[11px] font-semibold">
+                          Click to change file
+                        </div>
+                      </div>
+                      <div className="text-emerald-400 font-semibold flex items-center gap-1.5 text-xs">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{uploadFile?.name}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-8 h-8 text-emerald-400 mx-auto" />
+                      <div className="text-slate-300 font-semibold">
+                        {uploadFile ? uploadFile.name : 'Choose or drop prescription image (auto-scanned instantly)'}
+                      </div>
+                      <div className="text-[11px] text-slate-500">JPG, PNG, WebP, or PDF (Max 5MB)</div>
+                    </>
+                  )}
                 </label>
               </div>
 
-              <div>
-                <label className="text-slate-400 font-medium">Patient Name (Optional, auto-detected)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. John Doe"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full mt-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
-                />
-              </div>
+              {/* Scanning in progress indicator */}
+              {ocrScanning && (
+                <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-200 flex items-center gap-3 animate-pulse">
+                  <Sparkles className="w-5 h-5 text-purple-400 animate-spin shrink-0" />
+                  <div>
+                    <div className="font-semibold text-xs text-white">Multimodal Vision AI OCR Scanning...</div>
+                    <div className="text-[11px] text-purple-300/80">Transcribing prescription handwriting, doctor details, and medications in real-time...</div>
+                  </div>
+                </div>
+              )}
 
-              <div>
-                <label className="text-slate-400 font-medium">Doctor Name (Optional, auto-detected)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Dr. Sarah Jenkins, MD"
-                  value={doctorName}
-                  onChange={(e) => setDoctorName(e.target.value)}
-                  className="w-full mt-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
-                />
+              {/* Auto-OCR Result Card */}
+              {ocrPreview && !ocrScanning && (
+                <div className="bg-slate-950 p-4 rounded-xl border border-emerald-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-emerald-400 text-xs flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      Prescription Scanned & Transcribed
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold">
+                      {ocrPreview.ocr_engine}
+                    </span>
+                  </div>
+
+                  {/* Detected Medicines */}
+                  {(() => {
+                    let meds = [];
+                    try {
+                      meds = typeof ocrPreview.extracted_medicines === 'string'
+                        ? JSON.parse(ocrPreview.extracted_medicines)
+                        : ocrPreview.extracted_medicines;
+                    } catch (e) {
+                      meds = [];
+                    }
+
+                    return meds && meds.length > 0 ? (
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] text-slate-400 font-medium">Auto-Detected Medicines ({meds.length}):</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {meds.map((m, idx) => (
+                            <div key={idx} className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-start gap-2">
+                              <Pill className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                              <div className="text-[11px] leading-tight">
+                                <div className="font-bold text-white">{m.name} {m.strength && <span className="text-emerald-400 font-normal">({m.strength})</span>}</div>
+                                <div className="text-slate-400 text-[10px] mt-0.5">{m.dosage || 'Standard dosage'}{m.duration ? ` • ${m.duration}` : ''}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {ocrPreview.extracted_text && (
+                    <details className="text-[11px] text-slate-400">
+                      <summary className="cursor-pointer text-emerald-400/90 hover:underline select-none">
+                        View transcribed clinical text
+                      </summary>
+                      <pre className="mt-1.5 p-2 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300 whitespace-pre-wrap max-h-24 overflow-y-auto">
+                        {ocrPreview.extracted_text}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              {/* Form Fields pre-populated by OCR */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 font-medium flex items-center justify-between">
+                    <span>Patient Name</span>
+                    {customerName && <span className="text-emerald-400 text-[10px]">Auto-filled</span>}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. John Doe"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full mt-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 font-medium flex items-center justify-between">
+                    <span>Doctor Name</span>
+                    {doctorName && <span className="text-emerald-400 text-[10px]">Auto-filled</span>}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Dr. Sarah Jenkins, MD"
+                    value={doctorName}
+                    onChange={(e) => setDoctorName(e.target.value)}
+                    className="w-full mt-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="text-slate-400 font-medium">Pharmacist Dispensing Notes</label>
                 <textarea
                   rows={2}
-                  placeholder="Additional observations..."
+                  placeholder="Additional clinical observations..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full mt-1 p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
@@ -318,17 +477,27 @@ export default function Prescriptions({ userRole }) {
               <div className="pt-2 flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!uploadFile || uploading}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-white disabled:opacity-50"
+                  disabled={!uploadFile || uploading || ocrScanning}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-white disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-emerald-600/20"
                 >
-                  {uploading ? 'Processing OCR...' : 'Upload & Analyze'}
+                  {uploading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Prescription...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Confirm & Save Prescription</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
