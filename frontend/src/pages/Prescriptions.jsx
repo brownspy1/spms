@@ -15,14 +15,27 @@ import {
   RefreshCw,
   CheckCircle2,
   Image as ImageIcon,
+  ShoppingCart,
+  CreditCard,
+  Printer,
 } from 'lucide-react';
 import { prescriptionsApi, settingsApi } from '../services/api';
+import ReceiptModal from '../components/ReceiptModal';
 
 export default function Prescriptions({ userRole, onNavigateTab }) {
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRx, setSelectedRx] = useState(null);
+
+  // Dispense & Auto-Order state
+  const [dispenseRx, setDispenseRx] = useState(null);
+  const [dispenseLoading, setDispenseLoading] = useState(false);
+  const [dispensePaymentMethod, setDispensePaymentMethod] = useState('Cash');
+  const [dispenseTaxPercent, setDispenseTaxPercent] = useState(5.0);
+  const [dispenseDiscount, setDispenseDiscount] = useState(0.0);
+  const [dispenseError, setDispenseError] = useState(null);
+  const [completedSale, setCompletedSale] = useState(null);
 
   // Upload modal & Auto-OCR state
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -136,6 +149,32 @@ export default function Prescriptions({ userRole, onNavigateTab }) {
       }
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleDispenseAndCreateOrder = async () => {
+    if (!dispenseRx) return;
+    setDispenseLoading(true);
+    setDispenseError(null);
+    try {
+      const res = await prescriptionsApi.dispenseAndCreateOrder(dispenseRx.id, {
+        payment_method: dispensePaymentMethod,
+        tax_percent: parseFloat(dispenseTaxPercent) || 0,
+        discount_amount: parseFloat(dispenseDiscount) || 0,
+      });
+      setDispenseRx(null);
+      if (res.sale) {
+        setCompletedSale(res.sale);
+      }
+      loadPrescriptions();
+      if (selectedRx?.id === dispenseRx.id) {
+        setSelectedRx({ ...selectedRx, status: 'Dispensed' });
+      }
+    } catch (err) {
+      console.error('Dispense order failed:', err);
+      setDispenseError(err.message || 'Failed to dispense and create order');
+    } finally {
+      setDispenseLoading(false);
     }
   };
 
@@ -282,10 +321,18 @@ export default function Prescriptions({ userRole, onNavigateTab }) {
                   )}
                   {rx.status === 'Approved' && (
                     <button
-                      onClick={() => handleStatusChange(rx.id, 'Dispensed')}
-                      className="px-2.5 py-1 rounded-lg bg-blue-600/20 text-blue-300 hover:bg-blue-600 hover:text-white font-medium text-[11px] transition-colors"
+                      onClick={() => {
+                        setDispenseRx(rx);
+                        setDispenseError(null);
+                        setDispensePaymentMethod('Cash');
+                        setDispenseDiscount(0);
+                        setDispenseTaxPercent(5);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors flex items-center gap-1 shadow-sm"
+                      title="Dispense and auto-create sale order with thermal receipt"
                     >
-                      Dispense
+                      <ShoppingCart className="w-3 h-3" />
+                      <span>Dispense & Order</span>
                     </button>
                   )}
                   <button
@@ -580,6 +627,150 @@ export default function Prescriptions({ userRole, onNavigateTab }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Dispense & Create Order Confirmation */}
+      {dispenseRx && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <ShoppingCart className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Dispense & Generate Order</h2>
+                  <p className="text-[11px] text-slate-400">Rx #{dispenseRx.id} • {dispenseRx.customer_name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDispenseRx(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {dispenseError && (
+              <div className="bg-rose-950/40 border border-rose-800/80 rounded-xl p-3 flex items-center gap-2 text-rose-300 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{dispenseError}</span>
+              </div>
+            )}
+
+            {/* Extracted medicines list preview */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300 block">
+                Prescription Extracted Medicines:
+              </label>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 max-h-40 overflow-y-auto space-y-2">
+                {(() => {
+                  let medList = [];
+                  try {
+                    medList = JSON.parse(dispenseRx.extracted_medicines || '[]');
+                  } catch (e) {
+                    medList = [];
+                  }
+                  if (!medList.length) {
+                    return <span className="text-xs text-slate-500 italic">No medicines extracted from this prescription</span>;
+                  }
+                  return medList.map((m, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
+                      <div className="flex items-center gap-2">
+                        <Pill className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="font-medium text-slate-200">{m.name || m.medicine}</span>
+                        {m.strength && <span className="text-[10px] text-slate-400">({m.strength})</span>}
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Qty: {m.quantity || m.qty || m.duration || '1'}
+                      </span>
+                    </div>
+                  ));
+                })()}
+              </div>
+              <p className="text-[10px] text-slate-400">
+                System matches brand and generic names with stock catalog and deducts earliest expiring batches (FEFO).
+              </p>
+            </div>
+
+            {/* Billing details: payment method, discount */}
+            <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">Payment Method</label>
+                <select
+                  value={dispensePaymentMethod}
+                  onChange={(e) => setDispensePaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Credit/Debit Card</option>
+                  <option value="Mobile">Mobile Payment (bKash/Nagad)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">Discount Amount ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={dispenseDiscount}
+                  onChange={(e) => setDispenseDiscount(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => handleStatusChange(dispenseRx.id, 'Dispensed').then(() => setDispenseRx(null))}
+                className="text-xs text-slate-400 hover:text-slate-200 underline"
+                title="Mark as dispensed without creating a sale record"
+              >
+                Mark Dispensed only
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDispenseRx(null)}
+                  disabled={dispenseLoading}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDispenseAndCreateOrder}
+                  disabled={dispenseLoading}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                >
+                  {dispenseLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Dispensing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Confirm & Print Receipt</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reusable Receipt Modal */}
+      {completedSale && (
+        <ReceiptModal
+          sale={completedSale}
+          onClose={() => setCompletedSale(null)}
+          title="Prescription Dispensed & Billed"
+        />
       )}
     </div>
   );

@@ -156,6 +156,9 @@ class SaleResponse(BaseModel):
     total_amount: float
     payment_method: str
     interaction_override_reason: Optional[str] = None
+    customer_phone: Optional[str] = None
+    cashier_name: Optional[str] = None  
+    prescription_id: Optional[int] = None
     created_at: datetime
     items: List[SaleItemResponse]
 

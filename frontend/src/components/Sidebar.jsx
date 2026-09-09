@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   ShoppingCart,
+  ClipboardList,
   Boxes,
   FileText,
   Activity,
@@ -24,6 +25,7 @@ export default function Sidebar({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Pharmacist', 'Staff'] },
     { id: 'pos', label: 'Point of Sale (POS)', icon: ShoppingCart, roles: ['Admin', 'Pharmacist', 'Staff'] },
+    { id: 'orders', label: 'Orders & Sales History', icon: ClipboardList, roles: ['Admin', 'Pharmacist', 'Staff'] },
     { id: 'inventory', label: 'Inventory & Batches', icon: Boxes, roles: ['Admin', 'Pharmacist', 'Staff'] },
     { id: 'prescriptions', label: 'Prescriptions & OCR', icon: FileText, roles: ['Admin', 'Pharmacist'] },
     { id: 'interactions', label: 'Drug Interaction & AI', icon: Activity, roles: ['Admin', 'Pharmacist', 'Staff'] },

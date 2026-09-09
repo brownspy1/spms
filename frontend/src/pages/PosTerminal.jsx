@@ -17,6 +17,7 @@ import {
   Barcode,
 } from 'lucide-react';
 import { medicinesApi, posApi, customersApi, interactionsApi } from '../services/api';
+import ReceiptModal from '../components/ReceiptModal';
 
 export default function PosTerminal({ currentUser }) {
   const [medicines, setMedicines] = useState([]);
@@ -511,93 +512,11 @@ export default function PosTerminal({ currentUser }) {
 
       {/* MODAL: Printable Thermal Receipt */}
       {completedSale && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-base">
-                <CheckCircle className="w-5 h-5" />
-                <span>Transaction Successful</span>
-              </div>
-              <button
-                onClick={() => setCompletedSale(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Receipt Preview Body (also target of window.print) */}
-            <div
-              id="printable-receipt"
-              className="bg-white text-slate-900 p-5 rounded-xl text-xs font-mono space-y-3 shadow-inner"
-            >
-              <div className="text-center border-b pb-2">
-                <div className="font-bold text-sm">SPMS PHARMACY CARE</div>
-                <div className="text-[10px] text-slate-600">Smart Pharmacy System • License #RX-9941</div>
-                <div className="text-[10px] text-slate-600">{new Date(completedSale.created_at).toLocaleString()}</div>
-              </div>
-
-              <div className="flex justify-between text-[11px]">
-                <span>Invoice: {completedSale.invoice_number}</span>
-                <span>Payment: {completedSale.payment_method}</span>
-              </div>
-              <div className="text-[11px]">
-                <span>Patient: {completedSale.customer_name}</span>
-              </div>
-
-              <div className="border-t border-b py-2 space-y-1">
-                {completedSale.items?.map((it, i) => (
-                  <div key={i} className="flex justify-between text-[11px]">
-                    <div>
-                      <div>{it.medicine_name}</div>
-                      <div className="text-[9px] text-slate-500">
-                        Batch: {it.batch_number} (Qty: {it.quantity})
-                      </div>
-                    </div>
-                    <div className="font-semibold">${it.subtotal.toFixed(2)}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-1 text-right text-[11px]">
-                <div>Subtotal: ${completedSale.subtotal.toFixed(2)}</div>
-                <div>Tax: ${completedSale.tax_amount.toFixed(2)}</div>
-                {completedSale.discount_amount > 0 && (
-                  <div>Discount: -${completedSale.discount_amount.toFixed(2)}</div>
-                )}
-                <div className="font-bold text-sm pt-1 border-t">
-                  TOTAL: ${completedSale.total_amount.toFixed(2)}
-                </div>
-              </div>
-
-              {completedSale.interaction_override_reason && (
-                <div className="text-[9px] bg-amber-50 p-1.5 rounded border border-amber-200 text-amber-900 mt-2">
-                  <span className="font-bold">Clinical Override:</span> {completedSale.interaction_override_reason}
-                </div>
-              )}
-
-              <div className="text-center text-[10px] text-slate-500 pt-2 border-t">
-                Thank you for choosing SPMS Care. For emergency clinical support, call 1-800-SPMS-RX.
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={() => window.print()}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print Thermal Receipt</span>
-              </button>
-              <button
-                onClick={() => setCompletedSale(null)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReceiptModal
+          sale={completedSale}
+          onClose={() => setCompletedSale(null)}
+          title="Transaction Successful"
+        />
       )}
     </div>
   );

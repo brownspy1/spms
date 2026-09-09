@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import PosTerminal from './pages/PosTerminal';
+import OrdersHistory from './pages/OrdersHistory';
 import Inventory from './pages/Inventory';
 import Prescriptions from './pages/Prescriptions';
 import InteractionsChecker from './pages/InteractionsChecker';
@@ -76,6 +77,7 @@ export default function App() {
             <Dashboard setActiveTab={setActiveTab} userRole={currentUser.role} />
           )}
           {activeTab === 'pos' && <PosTerminal currentUser={currentUser} />}
+          {activeTab === 'orders' && <OrdersHistory />}
           {activeTab === 'inventory' && <Inventory userRole={currentUser.role} />}
           {activeTab === 'prescriptions' && <Prescriptions userRole={currentUser.role} onNavigateTab={setActiveTab} />}
           {activeTab === 'interactions' && <InteractionsChecker />}

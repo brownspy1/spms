@@ -128,10 +128,12 @@ class Sale(Base):
     total_amount = Column(Float, nullable=False)
     payment_method = Column(String(50), default="Cash")  # Cash, Card, Mobile
     interaction_override_reason = Column(Text, nullable=True)
+    prescription_id = Column(Integer, ForeignKey("prescriptions.id"), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
     user = relationship("User", back_populates="sales")
     customer = relationship("Customer", back_populates="sales")
+    prescription = relationship("Prescription")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
 
 class SaleItem(Base):

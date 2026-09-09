@@ -327,4 +327,104 @@ def test_consult_ai_assistant_gemini():
     assert "safety_disclaimer" in data
     assert len(data["response"]) > 10
 
+def test_list_sales_and_orders_history():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create batch for med2 so it has stock
+    db = TestingSessionLocal()
+    from backend.app.models.models import Batch, Medicine
+    med2 = db.query(Medicine).filter(Medicine.brand_name == "Bayer Aspirin").first()
+    med2_id = med2.id
+    b = Batch(
+        medicine_id=med2_id,
+        batch_number="ASP-TEST",
+        manufacture_date=date.today() - timedelta(days=20),
+        expiry_date=date.today() + timedelta(days=200),
+        initial_quantity=50,
+        current_quantity=50,
+        purchase_cost=0.20,
+        selling_price=0.50
+    )
+    db.add(b)
+    db.commit()
+    db.close()
+
+    checkout_payload = {
+        "items": [{"medicine_id": med2_id, "quantity": 3}],
+        "customer_name": "Rahim Uddin",
+        "payment_method": "Cash",
+        "discount_amount": 0,
+        "tax_percent": 5.0
+    }
+    resp = client.post("/api/pos/checkout", json=checkout_payload, headers=headers)
+    assert resp.status_code == 200
+    sale_data = resp.json()
+    invoice_no = sale_data["invoice_number"]
+
+    # Query sales list with search
+    list_resp = client.get("/api/pos/sales?search=Rahim", headers=headers)
+    assert list_resp.status_code == 200
+    res = list_resp.json()
+    assert "sales" in res
+    assert res["total"] >= 1
+    found = any(s["invoice_number"] == invoice_no for s in res["sales"])
+    assert found
+
+    # Query individual sale receipt
+    sale_id = sale_data["id"]
+    receipt_resp = client.get(f"/api/pos/sales/{sale_id}", headers=headers)
+    assert receipt_resp.status_code == 200
+    rec_data = receipt_resp.json()
+    assert rec_data["invoice_number"] == invoice_no
+    assert rec_data["customer_name"] == "Rahim Uddin"
+
+def test_prescription_dispense_and_auto_create_order():
+    import json
+    from datetime import datetime, timezone, timedelta
+    from backend.app.models.models import Prescription
+
+    db = TestingSessionLocal()
+    # Create an approved prescription with extracted medicines matching Coumadin (seeded with stock)
+    rx = Prescription(
+        customer_name="Karim Ullah",
+        doctor_name="Dr. Jenkins",
+        status="Approved",
+        extracted_text="Rx: Coumadin 5mg take 2 tablets",
+        extracted_medicines=json.dumps([{"name": "Coumadin", "quantity": 2}]),
+        retention_deadline=datetime.now(timezone.utc) + timedelta(days=90),
+        is_archived=False
+    )
+    db.add(rx)
+    db.commit()
+    db.refresh(rx)
+    rx_id = rx.id
+    db.close()
+
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Dispense and auto create order
+    dispense_payload = {
+        "payment_method": "Mobile",
+        "tax_percent": 5.0,
+        "discount_amount": 0.0
+    }
+    resp = client.post(f"/api/prescriptions/{rx_id}/dispense-and-create-order", json=dispense_payload, headers=headers)
+    assert resp.status_code == 200
+    res = resp.json()
+    assert "sale" in res
+    assert res["sale"]["customer_name"] == "Karim Ullah"
+    assert res["sale"]["payment_method"] == "Mobile"
+    assert res["sale"]["prescription_id"] == rx_id
+    assert len(res["sale"]["items"]) >= 1
+
+    # Verify prescription status is now Dispensed
+    rx_check = client.get("/api/prescriptions", headers=headers)
+    assert rx_check.status_code == 200
+    dispensed_rx = [r for r in rx_check.json() if r["id"] == rx_id][0]
+    assert dispensed_rx["status"] == "Dispensed"
+
 

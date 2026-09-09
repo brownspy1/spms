@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime, date, timezone
+from datetime import time as dt_time
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from backend.app.database import get_db
 from backend.app.models.models import Sale, SaleItem, Medicine, Batch, User, Customer
@@ -182,23 +184,60 @@ def checkout(
 
     return sale
 
-@router.get("/sales", response_model=List[SaleResponse])
+@router.get("/sales")
 def list_sales(
-    invoice: Optional[str] = None,
-    limit: int = Query(50, le=100),
+    search: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    payment_method: Optional[str] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List recent completed sales transactions."""
+    """List sales with search, date range filtering, and pagination."""
     query = db.query(Sale)
-    if invoice:
-        query = query.filter(Sale.invoice_number.ilike(f"%{invoice}%"))
-    return query.order_by(Sale.created_at.desc()).limit(limit).all()
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.outerjoin(Customer, Sale.customer_id == Customer.id).filter(
+            or_(
+                Sale.customer_name.ilike(search_term),
+                Sale.invoice_number.ilike(search_term),
+                Customer.phone.ilike(search_term)
+            )
+        )
+    
+    if date_from:
+        query = query.filter(Sale.created_at >= datetime.combine(date_from, datetime.min.time()).replace(tzinfo=timezone.utc))
+    if date_to:
+        query = query.filter(Sale.created_at <= datetime.combine(date_to, dt_time(23, 59, 59)).replace(tzinfo=timezone.utc))
+    
+    if payment_method:
+        query = query.filter(Sale.payment_method == payment_method)
+    
+    total = query.count()
+    sales = query.order_by(Sale.created_at.desc()).offset(skip).limit(limit).all()
+    
+    # Enrich with customer_phone and cashier_name
+    results = []
+    for s in sales:
+        data = SaleResponse.model_validate(s).model_dump()
+        data["customer_phone"] = s.customer.phone if s.customer else None
+        data["cashier_name"] = s.user.full_name if s.user else None
+        data["prescription_id"] = s.prescription_id
+        results.append(data)
+    
+    return {"sales": results, "total": total}
 
-@router.get("/sales/{id}", response_model=SaleResponse)
+@router.get("/sales/{id}")
 def get_sale_receipt(id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Retrieve sale by ID for thermal invoice printing and receipt generation."""
     sale = db.query(Sale).filter(Sale.id == id).first()
     if not sale:
         raise HTTPException(status_code=404, detail="Sale not found")
-    return sale
+    data = SaleResponse.model_validate(sale).model_dump()
+    data["customer_phone"] = sale.customer.phone if sale.customer else None
+    data["cashier_name"] = sale.user.full_name if sale.user else None
+    data["prescription_id"] = sale.prescription_id
+    return data

@@ -119,6 +119,11 @@ export const prescriptionsApi = {
     }),
   updateStatus: (id, newStatus) =>
     request(`/prescriptions/${id}/status?new_status=${newStatus}`, { method: 'PUT' }),
+  dispenseAndCreateOrder: (id, data = {}) =>
+    request(`/prescriptions/${id}/dispense-and-create-order`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   cleanupRetention: () => request('/prescriptions/retention/cleanup', { method: 'POST' }),
 };
 
