@@ -1,12 +1,19 @@
 import os
 import re
-import uuid
+import io
 import json
 import base64
 from datetime import datetime, timedelta, timezone
-from typing import Tuple, Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional
 from fastapi import UploadFile, HTTPException
 import httpx
+from PIL import Image
+
+try:
+    import pytesseract
+    PYTESSERACT_AVAILABLE = True
+except ImportError:
+    PYTESSERACT_AVAILABLE = False
 
 from backend.app.core.config import settings, get_gemini_api_key
 
@@ -14,6 +21,15 @@ from backend.app.core.config import settings, get_gemini_api_key
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
 ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+COMMON_MEDICINE_PATTERNS = [
+    "Amoxicillin", "Augmentin", "Paracetamol", "Acetaminophen", "Ciprofloxacin", "Azithromycin",
+    "Metformin", "Glipizide", "Lisinopril", "Amlodipine", "Losartan", "Atorvastatin",
+    "Simvastatin", "Rosuvastatin", "Omeprazole", "Pantoprazole", "Esomeprazole",
+    "Ibuprofen", "Naproxen", "Aspirin", "Warfarin", "Clopidogrel", "Cetirizine",
+    "Fexofenadine", "Montelukast", "Salbutamol", "Doxycycline", "Metronidazole",
+    "Levofloxacin", "Prednisolone", "Dexamethasone", "Insulin", "Ranitidine"
+]
 
 def validate_uploaded_file(file: UploadFile, content: bytes) -> bool:
     """
@@ -38,116 +54,186 @@ def validate_uploaded_file(file: UploadFile, content: bytes) -> bool:
         
     return True
 
+def parse_text_heuristically(raw_text: str, filename: str) -> Dict[str, Any]:
+    """
+    Extracts doctor, patient, and medicines from raw OCR text using regex and medical terminology.
+    Used by Tesseract local engine or when LLM JSON needs fallback.
+    """
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    
+    doctor_name = ""
+    customer_name = ""
+    medicines = []
+    
+    # 1. Detect Doctor Name
+    for line in lines:
+        doc_match = re.search(r"(?:Dr\.?|Doctor|Prof\.?|Physician)\s+([A-Za-z\.\s]{3,35})", line, re.IGNORECASE)
+        if doc_match and not doctor_name:
+            clean_doc = doc_match.group(0).strip()
+            # Clean trailing punctuation
+            doctor_name = re.sub(r"[,:;]+$", "", clean_doc)
+            break
+            
+    # 2. Detect Patient Name
+    for line in lines:
+        pat_match = re.search(r"(?:Patient|Pt\.?|Name|For|Rx\s+For)[:\s]+([A-Za-z\s]{2,30})", line, re.IGNORECASE)
+        if pat_match and not customer_name:
+            clean_pat = pat_match.group(1).strip()
+            # Avoid picking words like 'Address', 'Age', 'Date'
+            if not any(k in clean_pat.lower() for k in ["address", "date", "age", "sex", "male", "female"]):
+                customer_name = clean_pat
+                break
+
+    # 3. Detect Medicines
+    found_med_names = set()
+    for med_keyword in COMMON_MEDICINE_PATTERNS:
+        pattern = re.compile(rf"\b{med_keyword}\b", re.IGNORECASE)
+        for line in lines:
+            if pattern.search(line):
+                # Look for strength (e.g. 500mg, 20mg, 10ml)
+                strength_match = re.search(r"(\d+\s*(?:mg|g|ml|mcg|iu))", line, re.IGNORECASE)
+                strength = strength_match.group(1) if strength_match else ""
+                
+                # Look for dosage (e.g. 1 tab bid, 1 cap tid, once daily, 2 times daily)
+                dosage_match = re.search(r"(?:1|2|3)?\s*(?:tab|tablet|cap|capsule|pill|drop|tsp|tbsp)?\s*(?:tid|bid|qid|qhs|daily|once daily|twice daily|every \d+ hours|prn)[^\n\r,]*", line, re.IGNORECASE)
+                dosage = dosage_match.group(0).strip() if dosage_match else "As directed"
+                
+                duration_match = re.search(r"(?:x\s*)?(\d+\s*(?:days|weeks|months|d|w))", line, re.IGNORECASE)
+                duration = duration_match.group(1) if duration_match else ""
+
+                if med_keyword.lower() not in found_med_names:
+                    found_med_names.add(med_keyword.lower())
+                    medicines.append({
+                        "name": med_keyword,
+                        "strength": strength,
+                        "dosage": dosage,
+                        "duration": duration
+                    })
+
+    # Also scan for generic strength lines if medicines empty (e.g. "Cefixime 200mg")
+    if not medicines:
+        for line in lines:
+            line_med_match = re.search(r"^([A-Z][a-z]{3,20})\s+(\d+\s*(?:mg|g|ml|mcg))(?:\s+(.*))?$", line)
+            if line_med_match:
+                name = line_med_match.group(1)
+                strength = line_med_match.group(2)
+                dosage = line_med_match.group(3) or "As directed"
+                medicines.append({
+                    "name": name,
+                    "strength": strength,
+                    "dosage": dosage,
+                    "duration": ""
+                })
+
+    return {
+        "doctor_name": doctor_name,
+        "customer_name": customer_name,
+        "medicines": medicines
+    }
+
 async def extract_prescription_data(file_content: bytes, filename: str, mime_type: str = "image/jpeg", db: Any = None) -> Dict[str, Any]:
     """
-    Performs OCR and prescription intelligence:
-    1. If Google Gemini API key is configured and file is an image, uses Gemini 1.5 Flash Vision.
-    2. Otherwise, uses an advanced clinical pharmacology parser.
+    Performs real-time OCR and prescription intelligence:
+    1. If Google Gemini API key is configured, calls Google Gemini Vision REST API (with correct inlineData camelCase).
+    2. Otherwise or as failover, uses local Tesseract OCR directly on the image to read real prescription text.
     """
     gemini_key = get_gemini_api_key(db)
     
-    # Try Gemini 1.5 Flash Multimodal Vision if key is available
+    # 1. Try Google Gemini Multimodal Vision API if key is available
     if gemini_key and mime_type.startswith("image/"):
-        try:
-            b64_image = base64.b64encode(file_content).decode("utf-8")
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-            
-            prompt = (
-                "You are an expert medical prescription transcription OCR system for SPMS Pharmacy. "
-                "Carefully examine this prescription image (including handwriting or printed text). "
-                "Extract all details into a clean JSON object with this EXACT structure:\n"
-                "{\n"
-                "  \"doctor_name\": \"Dr. Full Name or Clinic Name\",\n"
-                "  \"customer_name\": \"Patient Full Name\",\n"
-                "  \"raw_text\": \"Full verbatim transcribed text from prescription\",\n"
-                "  \"medicines\": [\n"
-                "    {\"name\": \"Medicine Name\", \"strength\": \"e.g. 500mg\", \"dosage\": \"e.g. 1 tab bid\", \"duration\": \"e.g. 7 days\"}\n"
-                "  ],\n"
-                "  \"clinical_notes\": \"Any special notes, refills, or allergy warnings\"\n"
-                "}\n"
-                "Respond with ONLY the raw JSON object. Do not include markdown code fence formatting like ```json."
-            )
+        b64_image = base64.b64encode(file_content).decode("utf-8")
+        
+        prompt = (
+            "You are an expert clinical prescription transcription OCR system for SPMS Pharmacy. "
+            "Carefully examine this prescription image (transcribe doctor handwriting, clinic letterhead, and Rx lines). "
+            "Return a JSON object with this EXACT structure:\n"
+            "{\n"
+            "  \"doctor_name\": \"Dr. Full Name or Clinic Name\",\n"
+            "  \"customer_name\": \"Patient Full Name\",\n"
+            "  \"raw_text\": \"Full verbatim transcribed text from prescription\",\n"
+            "  \"medicines\": [\n"
+            "    {\"name\": \"Medicine Name\", \"strength\": \"e.g. 500mg\", \"dosage\": \"e.g. 1 tab bid\", \"duration\": \"e.g. 7 days\"}\n"
+            "  ],\n"
+            "  \"clinical_notes\": \"Any special observations, instructions, or refills\"\n"
+            "}\n"
+            "Respond ONLY with the JSON object. Do not include markdown code fence formatting."
+        )
 
-            payload = {
-                "contents": [
-                    {
-                        "parts": [
-                            {"text": prompt},
-                            {
-                                "inline_data": {
-                                    "mime_type": mime_type,
-                                    "data": b64_image
-                                }
+        # Google Gemini REST API requires inlineData (camelCase) and mimeType (camelCase)
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": b64_image
                             }
-                        ]
-                    }
-                ]
-            }
-
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    resp_json = res.json()
-                    raw_content = resp_json["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    
-                    # Robust JSON extraction from Gemini response
-                    match = re.search(r"\{.*\}", raw_content, re.DOTALL)
-                    cleaned = match.group(0) if match else raw_content.strip()
-                    
-                    data = json.loads(cleaned)
-                    return {
-                        "doctor_name": data.get("doctor_name") or "Prescribing Physician",
-                        "customer_name": data.get("customer_name") or "Patient",
-                        "extracted_text": data.get("raw_text") or raw_content,
-                        "extracted_medicines": json.dumps(data.get("medicines", [])),
-                        "notes": data.get("clinical_notes") or f"Transcribed by Gemini 1.5 Vision from {filename}.",
-                        "retention_deadline": datetime.now(timezone.utc) + timedelta(days=settings.PRESCRIPTION_RETENTION_DAYS),
-                        "ocr_engine": "Google Gemini 1.5 Flash Vision"
-                    }
-        except Exception as e:
-            print(f"Gemini Vision OCR fallback triggered ({e}). Using local heuristic parser.")
-
-    # High-accuracy fallback heuristic OCR scenarios
-    simulated_scenarios = [
-        {
-            "doctor": "Dr. Sarah Jenkins, MD (Cardiology Clinic)",
-            "patient": "John Doe",
-            "medicines": [
-                {"name": "Atorvastatin", "strength": "20mg", "dosage": "1 tablet daily at bedtime", "duration": "30 days"},
-                {"name": "Aspirin", "strength": "81mg", "dosage": "1 tablet daily with food", "duration": "30 days"},
-                {"name": "Lisinopril", "strength": "10mg", "dosage": "1 tablet daily in morning", "duration": "30 days"}
-            ],
-            "raw_text": "Rx Cardiology Clinic — Metro Health\nDr. Sarah Jenkins, MD\nPatient: John Doe\nRx:\n1. Atorvastatin 20mg - 1 tab PO qhs #30\n2. Aspirin 81mg - 1 tab PO daily #30\n3. Lisinopril 10mg - 1 tab PO qam #30\nRefills: 2\nSig: Monitor blood pressure regularly."
-        },
-        {
-            "doctor": "Dr. Robert Vance, MD (Internal Medicine)",
-            "patient": "Jane Smith",
-            "medicines": [
-                {"name": "Amoxicillin", "strength": "500mg", "dosage": "1 capsule every 8 hours", "duration": "7 days"},
-                {"name": "Paracetamol", "strength": "500mg", "dosage": "1-2 tablets every 6 hours prn fever/pain", "duration": "5 days"}
-            ],
-            "raw_text": "Vance Family Health Clinic\nDr. Robert Vance, MD\nPatient: Jane Smith\nRx:\n1. Amoxicillin 500mg PO TID x 7d #21\n2. Paracetamol 500mg PO Q6H PRN pain #20\nSig: Complete full course of antibiotics."
-        },
-        {
-            "doctor": "Dr. Michael Chen, MD (Endocrinology)",
-            "patient": "Robert Davis",
-            "medicines": [
-                {"name": "Metformin", "strength": "500mg", "dosage": "1 tablet twice daily with meals", "duration": "60 days"},
-                {"name": "Glipizide", "strength": "5mg", "dosage": "1 tablet daily before breakfast", "duration": "30 days"}
-            ],
-            "raw_text": "Chen Endocrine & Diabetes Care\nDr. Michael Chen, MD\nPatient: Robert Davis\nRx:\n1. Metformin 500mg PO BID with meals #120\n2. Glipizide 5mg PO QAM #30\nNotes: Fasting blood glucose target: 90-130 mg/dL."
+                        },
+                        {"text": prompt}
+                    ]
+                }
+            ]
         }
-    ]
-    
-    idx = sum(file_content[:32]) % len(simulated_scenarios)
-    picked = simulated_scenarios[idx]
-    
+
+        # Try gemini-1.5-flash first, then gemini-2.0-flash, then gemini-1.5-pro
+        vision_models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        for model_name in vision_models:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+                async with httpx.AsyncClient(timeout=20.0) as client:
+                    res = await client.post(url, json=payload)
+                    if res.status_code == 200:
+                        resp_json = res.json()
+                        raw_content = resp_json["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        
+                        match = re.search(r"\{.*\}", raw_content, re.DOTALL)
+                        cleaned = match.group(0) if match else raw_content.strip()
+                        data = json.loads(cleaned)
+                        
+                        return {
+                            "doctor_name": data.get("doctor_name", "").strip(),
+                            "customer_name": data.get("customer_name", "").strip(),
+                            "extracted_text": data.get("raw_text") or raw_content,
+                            "extracted_medicines": json.dumps(data.get("medicines", [])),
+                            "notes": data.get("clinical_notes") or f"Transcribed by Google {model_name} from {filename}.",
+                            "retention_deadline": datetime.now(timezone.utc) + timedelta(days=settings.PRESCRIPTION_RETENTION_DAYS),
+                            "ocr_engine": f"Google {model_name} Vision"
+                        }
+                    else:
+                        print(f"Gemini {model_name} returned status {res.status_code}: {res.text[:120]}")
+            except Exception as e:
+                print(f"Error calling {model_name}: {e}")
+
+    # 2. Local Tesseract OCR Engine on the actual image
+    if PYTESSERACT_AVAILABLE and mime_type.startswith("image/"):
+        try:
+            image = Image.open(io.BytesIO(file_content))
+            if image.mode not in ("RGB", "L"):
+                image = image.convert("RGB")
+            
+            raw_ocr_text = pytesseract.image_to_string(image).strip()
+            if raw_ocr_text:
+                parsed = parse_text_heuristically(raw_ocr_text, filename)
+                return {
+                    "doctor_name": parsed["doctor_name"],
+                    "customer_name": parsed["customer_name"],
+                    "extracted_text": raw_ocr_text,
+                    "extracted_medicines": json.dumps(parsed["medicines"]),
+                    "notes": f"Optical character recognition extracted {len(parsed['medicines'])} medicine(s) via Tesseract OCR.",
+                    "retention_deadline": datetime.now(timezone.utc) + timedelta(days=settings.PRESCRIPTION_RETENTION_DAYS),
+                    "ocr_engine": "Local Tesseract OCR Engine"
+                }
+        except Exception as ocr_err:
+            print(f"Tesseract OCR execution error: {ocr_err}")
+
+    # 3. Fallback when image contains no readable text or is PDF
     return {
-        "doctor_name": picked["doctor"],
-        "customer_name": picked["patient"],
-        "extracted_text": picked["raw_text"],
-        "extracted_medicines": json.dumps(picked["medicines"]),
-        "notes": f"Scanned from {filename}. Clinical prescription format verified.",
+        "doctor_name": "",
+        "customer_name": "",
+        "extracted_text": "No legible text could be automatically extracted from the uploaded file. Please ensure good lighting and contrast, or enter prescription details manually.",
+        "extracted_medicines": "[]",
+        "notes": f"Scanned file: {filename}. Please verify details manually.",
         "retention_deadline": datetime.now(timezone.utc) + timedelta(days=settings.PRESCRIPTION_RETENTION_DAYS),
-        "ocr_engine": "SPMS Clinical OCR Engine"
+        "ocr_engine": "Manual Verification Required"
     }

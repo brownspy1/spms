@@ -70,6 +70,8 @@ export const authApi = {
   disable2FA: () => request('/auth/2fa/disable', { method: 'POST' }),
   listUsers: () => request('/auth/users'),
   createUser: (userData) => request('/auth/users', { method: 'POST', body: JSON.stringify(userData) }),
+  updateUser: (id, data) => request(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUser: (id) => request(`/auth/users/${id}`, { method: 'DELETE' }),
 };
 
 // Medicines & Inventory API

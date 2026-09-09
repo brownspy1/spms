@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
+from pydantic import BaseModel
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -261,3 +262,81 @@ def create_user(
         request=request
     )
     return created
+
+class UserStatusUpdate(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    reset_lockout: Optional[bool] = False
+
+@router.put("/users/{id}", response_model=UserResponse)
+def update_user(
+    id: int,
+    update_data: UserStatusUpdate,
+    current_admin: User = Depends(RoleChecker(["Admin"])),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """Admin only: update user role, toggle active status, or reset account lockout."""
+    target_user = db.query(User).filter(User.id == id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if update_data.role:
+        if update_data.role not in ["Admin", "Pharmacist", "Staff"]:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        target_user.role = update_data.role
+
+    if update_data.is_active is not None:
+        if target_user.id == current_admin.id and not update_data.is_active:
+            raise HTTPException(status_code=400, detail="Cannot deactivate own admin account")
+        target_user.is_active = update_data.is_active
+
+    if update_data.reset_lockout:
+        target_user.failed_login_attempts = 0
+        target_user.locked_until = None
+
+    db.commit()
+    db.refresh(target_user)
+
+    log_audit_event(
+        db=db,
+        action="USER_UPDATED",
+        entity_type="User",
+        entity_id=str(target_user.id),
+        user=current_admin,
+        after_values={"username": target_user.username, "role": target_user.role, "is_active": target_user.is_active},
+        details=f"Admin {current_admin.username} updated user {target_user.username}",
+        request=request
+    )
+    return target_user
+
+@router.delete("/users/{id}")
+def delete_user(
+    id: int,
+    current_admin: User = Depends(RoleChecker(["Admin"])),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """Admin only: delete a user account."""
+    if id == current_admin.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account.")
+    
+    target_user = db.query(User).filter(User.id == id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    username = target_user.username
+    db.delete(target_user)
+    db.commit()
+
+    log_audit_event(
+        db=db,
+        action="USER_DELETED",
+        entity_type="User",
+        entity_id=str(id),
+        user=current_admin,
+        before_values={"username": username},
+        details=f"Admin {current_admin.username} deleted user {username}",
+        request=request
+    )
+    return {"status": "success", "message": f"User {username} deleted successfully."}

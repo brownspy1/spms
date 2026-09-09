@@ -10,6 +10,7 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import Customers from './pages/Customers';
 import AuditLogs from './pages/AuditLogs';
 import SecuritySettings from './pages/SecuritySettings';
+import StaffManagement from './pages/StaffManagement';
 import Login from './pages/Login';
 import { getStoredUser, authApi, medicinesApi } from './services/api';
 
@@ -67,10 +68,11 @@ export default function App() {
           )}
           {activeTab === 'pos' && <PosTerminal currentUser={currentUser} />}
           {activeTab === 'inventory' && <Inventory userRole={currentUser.role} />}
-          {activeTab === 'prescriptions' && <Prescriptions userRole={currentUser.role} />}
+          {activeTab === 'prescriptions' && <Prescriptions userRole={currentUser.role} onNavigateTab={setActiveTab} />}
           {activeTab === 'interactions' && <InteractionsChecker />}
           {activeTab === 'procurement' && <PurchaseOrders userRole={currentUser.role} />}
           {activeTab === 'customers' && <Customers />}
+          {activeTab === 'staff' && <StaffManagement currentUser={currentUser} />}
           {activeTab === 'audit' && <AuditLogs />}
           {activeTab === 'security' && (
             <SecuritySettings currentUser={currentUser} onUserUpdate={setCurrentUser} />

@@ -253,3 +253,62 @@ def test_prescription_preview_ocr():
     assert "extracted_medicines" in data
     assert "ocr_engine" in data
 
+def test_user_management_crud():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Create a new Staff member
+    new_user_payload = {
+        "username": "new_staff_member",
+        "full_name": "Sarah Connor",
+        "email": "sarah@spms.local",
+        "role": "Staff",
+        "password": "StaffPassword123!"
+    }
+    create_resp = client.post("/api/auth/users", json=new_user_payload, headers=headers)
+    assert create_resp.status_code == 200
+    user_id = create_resp.json()["id"]
+    assert create_resp.json()["username"] == "new_staff_member"
+
+    # 2. Update staff member role and status
+    update_resp = client.put(f"/api/auth/users/{user_id}", json={"role": "Pharmacist", "is_active": False}, headers=headers)
+    assert update_resp.status_code == 200
+    assert update_resp.json()["role"] == "Pharmacist"
+    assert update_resp.json()["is_active"] is False
+
+    # 3. Reset lockout
+    unlock_resp = client.put(f"/api/auth/users/{user_id}", json={"reset_lockout": True}, headers=headers)
+    assert unlock_resp.status_code == 200
+
+    # 4. Delete user
+    del_resp = client.delete(f"/api/auth/users/{user_id}", headers=headers)
+    assert del_resp.status_code == 200
+    assert del_resp.json()["status"] == "success"
+
+def test_prescription_ocr_with_real_image():
+    from PIL import Image, ImageDraw
+    import io
+    
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Draw an actual prescription image
+    img = Image.new('RGB', (700, 350), color='white')
+    draw = ImageDraw.Draw(img)
+    draw.text((30, 30), "Dr. Sarah Jenkins, MD\nPatient: John Doe\nRx: Amoxicillin 500mg\nTake 1 capsule every 8 hours x 7 days", fill='black')
+    
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG')
+    img_bytes = buf.getvalue()
+
+    files = {"file": ("real_rx.jpg", img_bytes, "image/jpeg")}
+    resp = client.post("/api/prescriptions/preview-ocr", files=files, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "ocr_engine" in data
+    assert "extracted_text" in data
+    assert "Amoxicillin" in data["extracted_text"]
+
+

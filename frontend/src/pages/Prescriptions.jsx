@@ -16,9 +16,9 @@ import {
   CheckCircle2,
   Image as ImageIcon,
 } from 'lucide-react';
-import { prescriptionsApi } from '../services/api';
+import { prescriptionsApi, settingsApi } from '../services/api';
 
-export default function Prescriptions({ userRole }) {
+export default function Prescriptions({ userRole, onNavigateTab }) {
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -35,9 +35,11 @@ export default function Prescriptions({ userRole }) {
   const [notes, setNotes] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [aiConfig, setAiConfig] = useState(null);
 
   useEffect(() => {
     loadPrescriptions();
+    settingsApi.getAI().then(setAiConfig).catch(() => {});
   }, []);
 
   const loadPrescriptions = async () => {
@@ -322,6 +324,32 @@ export default function Prescriptions({ userRole }) {
             {uploadError && (
               <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
                 {uploadError}
+              </div>
+            )}
+
+            {aiConfig && !aiConfig.is_configured && (
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs flex items-center justify-between text-purple-200">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>For AI handwriting recognition & automatic drug parsing, configure your Google Gemini Key.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseModal();
+                    if (onNavigateTab) onNavigateTab('security');
+                  }}
+                  className="text-purple-300 hover:text-white font-semibold underline text-[11px] shrink-0"
+                >
+                  Configure Key →
+                </button>
+              </div>
+            )}
+
+            {aiConfig && aiConfig.is_configured && (
+              <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Google Gemini Vision OCR Active (Ready to transcribe handwriting, doctor seals, & Rx lines)</span>
               </div>
             )}
 

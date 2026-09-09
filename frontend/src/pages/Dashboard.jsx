@@ -9,6 +9,7 @@ import {
   FileUp,
   Activity,
   CheckCircle2,
+  UserPlus,
 } from 'lucide-react';
 import { analyticsApi, medicinesApi } from '../services/api';
 
@@ -62,6 +63,15 @@ export default function Dashboard({ setActiveTab, userRole }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {userRole === 'Admin' && (
+            <button
+              onClick={() => setActiveTab('staff')}
+              className="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border border-purple-500/30 shadow-sm"
+            >
+              <UserPlus className="w-4 h-4 text-purple-400" />
+              <span>Manage Staff</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('pos')}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-emerald-600/20"

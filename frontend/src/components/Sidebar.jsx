@@ -5,10 +5,10 @@ import {
   Boxes,
   FileText,
   Activity,
-  Truck,
   Users,
   ShieldAlert,
   Lock,
+  UserPlus,
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, userRole }) {
@@ -20,6 +20,7 @@ export default function Sidebar({ activeTab, setActiveTab, userRole }) {
     { id: 'interactions', label: 'Drug Interaction & AI', icon: Activity, roles: ['Admin', 'Pharmacist', 'Staff'] },
     { id: 'procurement', label: 'Purchase Orders', icon: Truck, roles: ['Admin', 'Pharmacist'] },
     { id: 'customers', label: 'Patients & Customers', icon: Users, roles: ['Admin', 'Pharmacist', 'Staff'] },
+    { id: 'staff', label: 'Staff & Users', icon: UserPlus, roles: ['Admin'] },
     { id: 'audit', label: 'Audit Trail (Immutable)', icon: ShieldAlert, roles: ['Admin'] },
     { id: 'security', label: 'Security & 2FA', icon: Lock, roles: ['Admin', 'Pharmacist', 'Staff'] },
   ];
