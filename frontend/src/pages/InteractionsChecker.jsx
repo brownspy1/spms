@@ -314,7 +314,7 @@ export default function InteractionsChecker() {
               <div className="text-[10px] flex items-center gap-1.5 mt-0.5">
                 <span className={`w-1.5 h-1.5 rounded-full ${aiConfig?.is_configured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
                 <span className={aiConfig?.is_configured ? 'text-emerald-400 font-medium' : 'text-slate-400'}>
-                  {aiConfig?.is_configured ? 'Gemini 1.5 Flash Connected' : 'SPMS Pharmacology Engine'}
+                  {aiConfig?.is_configured ? 'Gemini 2.5 Flash Connected (Free Tier)' : 'SPMS Pharmacology Engine'}
                 </span>
               </div>
             </div>

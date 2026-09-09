@@ -35,11 +35,11 @@ def get_ai_settings(
             masked_key = "********"
 
     return {
-        "provider": "Google Gemini (1.5 Flash / Pro Vision)",
+        "provider": "Google Gemini (2.5 Flash / 2.0 Flash / 1.5 Flash)",
         "is_configured": is_configured,
         "masked_key": masked_key,
         "features_enabled": [
-            "AI Clinical Assistant Pharmacist Chat",
+            "AI Clinical Assistant Pharmacist Chat (Google Gemini 2.5 Flash)",
             "Multimodal Prescription OCR & Handwriting Recognition",
             "Pharmacological Mechanism Explanations"
         ]
@@ -103,7 +103,7 @@ async def test_gemini_connection(
                 models_count = len(data.get("models", []))
                 return {
                     "valid": True,
-                    "message": f"Successfully connected to Google Gemini! ({models_count} models accessible, including gemini-1.5-flash and gemini-1.5-pro)."
+                    "message": f"Successfully connected to Google Gemini! ({models_count} models accessible, including gemini-2.5-flash, gemini-2.0-flash, and gemini-1.5-flash)."
                 }
             else:
                 err_detail = res.text

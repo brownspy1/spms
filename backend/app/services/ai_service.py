@@ -35,33 +35,53 @@ async def consult_ai_assistant(
     if context_drugs:
         matched_interactions = find_interactions(context_drugs)
 
-    # Step 3: If Gemini API key is configured (dynamic in DB or env), call Gemini
+    # Step 3: If Gemini API key is configured (dynamic in DB, env, or default), call Gemini
     active_gemini_key = get_gemini_api_key(db)
     if active_gemini_key:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={active_gemini_key}"
-            sys_prompt = (
-                "You are an expert clinical pharmacy assistant for a Smart Pharmacy Management System (SPMS). "
-                "Provide accurate, concise, and professional pharmacology guidance. "
-                "Warn about contraindications, dosage adjustments, adverse reactions, and administration timing."
+        sys_prompt = (
+            "You are an expert clinical pharmacy assistant for a Smart Pharmacy Management System (SPMS). "
+            "Provide accurate, structured, and professional pharmacology guidance. "
+            "Use clear Markdown formatting with bullet points and bold section headers. "
+            "Address: Mechanism of Action, Contraindications, Recommended Dosage / Renal Adjustments, "
+            "Adverse Reactions & Warning Signs, and Patient Administration Instructions."
+        )
+        
+        context_str = ""
+        if matched_interactions:
+            context_str = "\n\nDetected Clinical Drug Interactions to consider:\n" + "\n".join(
+                f"- {it['drug_a'].title()} + {it['drug_b'].title()} ({it['severity']}): {it['clinical_effect']}. Guidance: {it['management']}"
+                for it in matched_interactions
             )
-            payload = {
-                "contents": [
-                    {"role": "user", "parts": [{"text": f"{sys_prompt}\n\nClinical Query:\n{sanitized_prompt}"}]}
-                ]
-            }
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    ai_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return {
-                        "response": ai_text,
-                        "safety_disclaimer": DISCLAIMER
-                    }
-        except (httpx.HTTPError, KeyError, IndexError) as err:
-            # External LLM unavailable or invalid response; seamlessly fall back to local clinical knowledge engine
-            print(f"Info: External LLM fallback to local pharmacology engine ({err})")
+        
+        full_query = f"{sys_prompt}{context_str}\n\nPharmacist Inquiry:\n{sanitized_prompt}"
+        payload = {
+            "contents": [
+                {"role": "user", "parts": [{"text": full_query}]}
+            ]
+        }
+
+        # Try gemini-2.5-flash, then gemini-2.5-flash-lite, then gemini-flash-latest
+        models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"]
+        for model_name in models_to_try:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={active_gemini_key}"
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    res = await client.post(url, json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        ai_text = "".join(p.get("text", "") for p in parts if "text" in p).strip()
+                        if ai_text:
+                            return {
+                                "response": ai_text,
+                                "safety_disclaimer": DISCLAIMER,
+                                "model": f"Google {model_name}"
+                            }
+                    else:
+                        print(f"Gemini {model_name} HTTP {res.status_code}: {res.text[:120]}")
+            except Exception as err:
+                print(f"Gemini {model_name} attempt error: {type(err).__name__} {err}")
+                continue
 
     # Step 4: High-accuracy structured pharmacological engine
     lower_prompt = sanitized_prompt.lower()

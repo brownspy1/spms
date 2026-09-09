@@ -12,6 +12,7 @@ import AuditLogs from './pages/AuditLogs';
 import SecuritySettings from './pages/SecuritySettings';
 import StaffManagement from './pages/StaffManagement';
 import Login from './pages/Login';
+import GlobalAIChatbot from './components/GlobalAIChatbot';
 import { getStoredUser, authApi, medicinesApi } from './services/api';
 
 export default function App() {
@@ -79,6 +80,9 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Global Floating AI Clinical Assistant */}
+      <GlobalAIChatbot />
     </div>
   );
 }

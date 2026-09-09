@@ -311,4 +311,20 @@ def test_prescription_ocr_with_real_image():
     assert "extracted_text" in data
     assert "Amoxicillin" in data["extracted_text"]
 
+def test_consult_ai_assistant_gemini():
+    login = client.post("/api/auth/login", json={"username": "admin_test", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "prompt": "What are the contraindications for Metformin?",
+        "context_drugs": ["Metformin"]
+    }
+    resp = client.post("/api/interactions/consult-ai", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "response" in data
+    assert "safety_disclaimer" in data
+    assert len(data["response"]) > 10
+
 

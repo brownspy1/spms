@@ -176,16 +176,17 @@ async def extract_prescription_data(file_content: bytes, filename: str, mime_typ
             ]
         }
 
-        # Try gemini-1.5-flash first, then gemini-2.0-flash, then gemini-1.5-pro
-        vision_models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        # Try gemini-2.5-flash first, then gemini-2.5-flash-lite, then gemini-flash-latest, then gemini-2.5-pro
+        vision_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-pro"]
         for model_name in vision_models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
-                async with httpx.AsyncClient(timeout=20.0) as client:
+                async with httpx.AsyncClient(timeout=30.0) as client:
                     res = await client.post(url, json=payload)
                     if res.status_code == 200:
                         resp_json = res.json()
-                        raw_content = resp_json["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        parts = resp_json.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        raw_content = "".join(p.get("text", "") for p in parts if "text" in p).strip()
                         
                         match = re.search(r"\{.*\}", raw_content, re.DOTALL)
                         cleaned = match.group(0) if match else raw_content.strip()

@@ -239,6 +239,7 @@ class AIConsultRequest(BaseModel):
 class AIConsultResponse(BaseModel):
     response: str
     safety_disclaimer: str
+    model: Optional[str] = None
 
 # --- Audit Log Schemas ---
 class AuditLogResponse(BaseModel):
