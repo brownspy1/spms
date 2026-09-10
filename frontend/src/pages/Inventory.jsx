@@ -84,16 +84,45 @@ export default function Inventory({ userRole }) {
     e.preventDefault();
     setActionError(null);
     try {
-      await medicinesApi.create({
-        ...newMedForm,
-        unit_price: parseFloat(newMedForm.unit_price),
-        reorder_level: parseInt(newMedForm.reorder_level),
-        initial_quantity: newMedForm.initial_quantity ? parseInt(newMedForm.initial_quantity) : null,
-      });
+      const payload = {
+        brand_name: newMedForm.brand_name.trim(),
+        generic_name: newMedForm.generic_name.trim(),
+        category: newMedForm.category.trim(),
+        dosage_form: newMedForm.dosage_form,
+        strength: newMedForm.strength.trim(),
+        manufacturer: newMedForm.manufacturer.trim(),
+        barcode: newMedForm.barcode?.trim() || null,
+        requires_prescription: Boolean(newMedForm.requires_prescription),
+        unit_price: parseFloat(newMedForm.unit_price) || 0,
+        reorder_level: parseInt(newMedForm.reorder_level) || 0,
+      };
+
+      if (newMedForm.initial_batch_number?.trim() && newMedForm.initial_expiry_date) {
+        payload.initial_batch_number = newMedForm.initial_batch_number.trim();
+        payload.initial_expiry_date = newMedForm.initial_expiry_date;
+        payload.initial_quantity = parseInt(newMedForm.initial_quantity) || 0;
+      }
+
+      await medicinesApi.create(payload);
       setShowAddMedModal(false);
+      setNewMedForm({
+        brand_name: '',
+        generic_name: '',
+        category: 'Cardiovascular',
+        dosage_form: 'Tablet',
+        strength: '500mg',
+        manufacturer: '',
+        barcode: '',
+        requires_prescription: false,
+        unit_price: 1.0,
+        reorder_level: 20,
+        initial_batch_number: '',
+        initial_expiry_date: '',
+        initial_quantity: 50,
+      });
       loadMedicines();
     } catch (err) {
-      setActionError(err.message);
+      setActionError(err.message || 'Failed to add medicine to catalog');
     }
   };
 
@@ -632,6 +661,12 @@ export default function Inventory({ userRole }) {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {actionError && (
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+                {actionError}
+              </div>
+            )}
 
             <form onSubmit={handleAddBatch} className="space-y-3 text-xs">
               <div>

@@ -48,7 +48,33 @@ export async function request(endpoint, options = {}) {
     } catch (e) {
       errorData = { detail: response.statusText };
     }
-    const err = new Error(errorData.detail?.message || errorData.detail || 'Request failed');
+
+    let errorMessage = 'Request failed';
+    if (typeof errorData === 'string') {
+      errorMessage = errorData;
+    } else if (errorData && typeof errorData === 'object') {
+      const detail = errorData.detail;
+      if (typeof detail === 'string') {
+        errorMessage = detail;
+      } else if (Array.isArray(detail)) {
+        // FastAPI / Pydantic validation error array: [{loc: [...], msg: "..."}]
+        errorMessage = detail
+          .map((item) => {
+            if (typeof item === 'string') return item;
+            const field = item.loc ? item.loc.filter((l) => l !== 'body').join('.') : '';
+            return field ? `${field}: ${item.msg}` : item.msg || JSON.stringify(item);
+          })
+          .join('; ');
+      } else if (detail && typeof detail === 'object') {
+        errorMessage = detail.message || detail.error || JSON.stringify(detail);
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error);
+      }
+    }
+
+    const err = new Error(errorMessage || response.statusText || 'Request failed');
     err.status = response.status;
     err.data = errorData;
     throw err;

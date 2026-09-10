@@ -3,6 +3,7 @@ import re
 import io
 import json
 import base64
+import difflib
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from fastapi import UploadFile, HTTPException
@@ -67,10 +68,9 @@ def parse_text_heuristically(raw_text: str, filename: str) -> Dict[str, Any]:
     
     # 1. Detect Doctor Name
     for line in lines:
-        doc_match = re.search(r"(?:Dr\.?|Doctor|Prof\.?|Physician)\s+([A-Za-z\.\s]{3,35})", line, re.IGNORECASE)
+        doc_match = re.search(r"(?:Dr\.?|Doctor|Prof\.?|Physician)\s*([A-Za-z\.\s]{3,35})", line, re.IGNORECASE)
         if doc_match and not doctor_name:
             clean_doc = doc_match.group(0).strip()
-            # Clean trailing punctuation
             doctor_name = re.sub(r"[,:;]+$", "", clean_doc)
             break
             
@@ -79,32 +79,47 @@ def parse_text_heuristically(raw_text: str, filename: str) -> Dict[str, Any]:
         pat_match = re.search(r"(?:Patient|Pt\.?|Name|For|Rx\s+For)[:\s]+([A-Za-z\s]{2,30})", line, re.IGNORECASE)
         if pat_match and not customer_name:
             clean_pat = pat_match.group(1).strip()
-            # Avoid picking words like 'Address', 'Age', 'Date'
             if not any(k in clean_pat.lower() for k in ["address", "date", "age", "sex", "male", "female"]):
                 customer_name = clean_pat
                 break
 
-    # 3. Detect Medicines
+    # 3. Detect Medicines (exact and fuzzy matching)
     found_med_names = set()
-    for med_keyword in COMMON_MEDICINE_PATTERNS:
-        pattern = re.compile(rf"\b{med_keyword}\b", re.IGNORECASE)
-        for line in lines:
-            if pattern.search(line):
-                # Look for strength (e.g. 500mg, 20mg, 10ml)
-                strength_match = re.search(r"(\d+\s*(?:mg|g|ml|mcg|iu))", line, re.IGNORECASE)
-                strength = strength_match.group(1) if strength_match else ""
-                
-                # Look for dosage (e.g. 1 tab bid, 1 cap tid, once daily, 2 times daily)
-                dosage_match = re.search(r"(?:1|2|3)?\s*(?:tab|tablet|cap|capsule|pill|drop|tsp|tbsp)?\s*(?:tid|bid|qid|qhs|daily|once daily|twice daily|every \d+ hours|prn)[^\n\r,]*", line, re.IGNORECASE)
-                dosage = dosage_match.group(0).strip() if dosage_match else "As directed"
-                
-                duration_match = re.search(r"(?:x\s*)?(\d+\s*(?:days|weeks|months|d|w))", line, re.IGNORECASE)
-                duration = duration_match.group(1) if duration_match else ""
+    for line in lines:
+        strength_match = re.search(r"(\d+\s*(?:mg|g|ml|mcg|iu))", line, re.IGNORECASE)
+        strength = strength_match.group(1) if strength_match else ""
+        dosage_match = re.search(
+            r"(?:1|2|3)?\s*(?:tab|tablet|cap|capsule|pill|drop|tsp|tbsp)?\s*(?:tid|bid|qid|qhs|daily|once daily|twice daily|three times daily|every \d+ hours|prn)[^\n\r,]*",
+            line,
+            re.IGNORECASE
+        )
+        dosage = dosage_match.group(0).strip() if dosage_match else "As directed"
+        duration_match = re.search(r"(?:x\s*)?(\d+\s*(?:days|weeks|months|d|w))", line, re.IGNORECASE)
+        duration = duration_match.group(1) if duration_match else ""
 
+        # Check exact keywords first
+        for med_keyword in COMMON_MEDICINE_PATTERNS:
+            pattern = re.compile(rf"\b{med_keyword}\b", re.IGNORECASE)
+            if pattern.search(line):
                 if med_keyword.lower() not in found_med_names:
                     found_med_names.add(med_keyword.lower())
                     medicines.append({
                         "name": med_keyword,
+                        "strength": strength,
+                        "dosage": dosage,
+                        "duration": duration
+                    })
+
+        # Check fuzzy token match for noisy OCR characters (e.g. Amaxicilin -> Amoxicillin)
+        words = re.findall(r"[A-Za-z]{4,}", line)
+        for w in words:
+            matches = difflib.get_close_matches(w.lower(), [p.lower() for p in COMMON_MEDICINE_PATTERNS], n=1, cutoff=0.72)
+            if matches:
+                canonical = next(p for p in COMMON_MEDICINE_PATTERNS if p.lower() == matches[0])
+                if canonical.lower() not in found_med_names:
+                    found_med_names.add(canonical.lower())
+                    medicines.append({
+                        "name": canonical,
                         "strength": strength,
                         "dosage": dosage,
                         "duration": duration
@@ -176,16 +191,14 @@ async def extract_prescription_data(file_content: bytes, filename: str, mime_typ
             ]
         }
 
-        # Try gemini-2.5-flash first, then gemini-flash-latest, then gemini-2.5-pro
-        vision_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"]
+        # Try gemini-2.0-flash first, then gemini-1.5-flash, then gemini-1.5-pro
+        vision_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
         for model_name in vision_models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
                 req_payload = dict(payload)
-                if "2.5" in model_name:
-                    req_payload["generationConfig"] = {"thinkingConfig": {"thinkingBudget": 0}}
 
-                async with httpx.AsyncClient(timeout=30.0) as client:
+                async with httpx.AsyncClient(timeout=15.0) as client:
                     res = await client.post(url, json=req_payload)
                     if res.status_code == 200:
                         resp_json = res.json()
@@ -205,6 +218,9 @@ async def extract_prescription_data(file_content: bytes, filename: str, mime_typ
                             "retention_deadline": datetime.now(timezone.utc) + timedelta(days=settings.PRESCRIPTION_RETENTION_DAYS),
                             "ocr_engine": f"Google {model_name} Vision"
                         }
+                    elif res.status_code in (401, 403):
+                        print(f"Gemini API key rejected with status {res.status_code}. Please configure a valid key in Settings.")
+                        break
                     else:
                         print(f"Gemini {model_name} returned status {res.status_code}: {res.text[:120]}")
             except Exception as e:

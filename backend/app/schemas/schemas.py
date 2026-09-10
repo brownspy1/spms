@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 
@@ -100,6 +100,27 @@ class MedicineCreate(MedicineBase):
     initial_expiry_date: Optional[date] = None
     initial_quantity: Optional[int] = None
     initial_cost: Optional[float] = None
+
+    @field_validator("initial_expiry_date", mode="before")
+    @classmethod
+    def empty_str_to_none_date(cls, v):
+        if v == "" or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
+
+    @field_validator("initial_batch_number", mode="before")
+    @classmethod
+    def empty_str_to_none_str(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("initial_quantity", "initial_cost", mode="before")
+    @classmethod
+    def empty_str_to_none_num(cls, v):
+        if v == "" or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
 
 class MedicineResponse(MedicineBase):
     id: int

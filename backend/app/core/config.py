@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     ]
     
     # AI Assistant
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "AQ.Ab8RN6LcyJg5QQniZuRmXQsU7gr8mbpVVnzg6EErmaXXkK4trw")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
     class Config:
@@ -43,18 +43,22 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Default built-in Gemini Free API key for out-of-the-box clinical AI & multimodal vision
-DEFAULT_GEMINI_API_KEY = "AQ.Ab8RN6LcyJg5QQniZuRmXQsU7gr8mbpVVnzg6EErmaXXkK4trw"
+DEFAULT_GEMINI_API_KEY = ""
 
 def get_gemini_api_key(db=None) -> str:
-    """Returns dynamic Gemini API key from DB, environment variable, or default free tier key."""
+    """Returns dynamic Gemini API key from DB, environment variable, or configured system settings."""
     if db:
         try:
             from backend.app.models.models import SystemSetting
             setting = db.query(SystemSetting).filter(SystemSetting.key == "GEMINI_API_KEY").first()
             if setting and setting.value and setting.value.strip():
-                return setting.value.strip()
+                val = setting.value.strip()
+                if not val.startswith("AQ."):
+                    return val
         except Exception:
             pass
-    return settings.GEMINI_API_KEY or DEFAULT_GEMINI_API_KEY
+    val = (settings.GEMINI_API_KEY or "").strip()
+    if val and not val.startswith("AQ."):
+        return val
+    return ""
 
