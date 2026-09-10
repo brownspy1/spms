@@ -60,7 +60,7 @@ export default function GlobalAIChatbot() {
           role: 'assistant',
           text: data.response,
           disclaimer: data.safety_disclaimer,
-          model: data.model || 'Google Gemini 2.5 Flash',
+          model: data.model || 'Google Gemini 2.0 Flash',
         },
       ]);
     } catch (err) {
